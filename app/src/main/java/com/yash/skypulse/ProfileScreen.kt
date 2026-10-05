@@ -128,7 +128,12 @@ fun SkyPulseProfileScreen() {
             // 4. Content Area
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (userPosts.isEmpty() && selectedTab == 0) {
-                    DinosaurEmptyState()
+                    DinosaurEmptyState(onLaunchClick = {
+                        // Simulate loading posts to demonstrate State Recomposition
+                        userPosts.addAll(listOf("Post 1", "Post 2", "Post 3", "Post 4", "Post 5", "Post 6"))
+                    })
+                } else if (selectedTab == 0) {
+                    UserContentGrid(userPosts)
                 } else {
                     // Placeholder for other tabs
                     Column(Modifier.padding(16.dp)) {
@@ -194,22 +199,15 @@ fun ProfileHeader() {
 }
 
 @Composable
-fun DinosaurEmptyState() {
+fun DinosaurEmptyState(onLaunchClick: () -> Unit) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // Your vision: Dinosaur at a computer on a planet
-            Text(
-                text = "🦖", 
-                fontSize = 80.sp
-            )
+            Text(text = "🦖", fontSize = 80.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "💻", 
-                fontSize = 40.sp
-            )
+            Text(text = "💻", fontSize = 40.sp)
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -228,7 +226,7 @@ fun DinosaurEmptyState() {
             
             Spacer(modifier = Modifier.height(32.dp))
             
-            Button(onClick = { /* Navigate to create post */ }) {
+            Button(onClick = onLaunchClick) {
                 Text("Launch Your First Post")
             }
         }
@@ -236,8 +234,7 @@ fun DinosaurEmptyState() {
 }
 
 @Composable
-fun UserContentGrid() {
-    // Placeholder for when the user actually has content
+fun UserContentGrid(posts: List<String>) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         modifier = Modifier.fillMaxSize(),
@@ -245,8 +242,16 @@ fun UserContentGrid() {
         horizontalArrangement = Arrangement.spacedBy(1.dp),
         verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
-        items(9) {
-            Box(modifier = Modifier.aspectRatio(1f).background(Color.White.copy(alpha = 0.1f)))
+        items(posts.size) {
+            Box(modifier = Modifier.aspectRatio(1f).background(Color.White.copy(alpha = 0.1f))) {
+                // Placeholder icon for a post
+                Icon(
+                    imageVector = Icons.Default.Search, 
+                    contentDescription = null, 
+                    tint = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
         }
     }
 }

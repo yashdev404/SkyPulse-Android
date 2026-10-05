@@ -30,7 +30,7 @@ import kotlin.math.roundToInt
 // import com.airbnb.lottie.compose.*
 
 sealed class AppScreen(val icon: ImageVector, val label: String) {
-    object Feed : AppScreen(Icons.Default.RssFeed, "Feed")
+    object Home : AppScreen(Icons.Default.RssFeed, "Feed")
     object Rooms : AppScreen(Icons.Default.Groups, "Rooms")
     object Stargazer : AppScreen(Icons.Default.AutoAwesome, "Stargazer")
     object Shop : AppScreen(Icons.Default.ShoppingBag, "Shop")
@@ -40,7 +40,7 @@ sealed class AppScreen(val icon: ImageVector, val label: String) {
 @Composable
 fun MainScreen() {
     var isLoading by remember { mutableStateOf(true) }
-    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Feed) }
+    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
 
     // Logic for hiding bar on scroll
     val bottomBarHeight = 80.dp
@@ -81,7 +81,7 @@ fun MainScreen() {
                     label = "ScreenTransition"
                 ) { screen ->
                     when (screen) {
-                        AppScreen.Feed -> HomeFeedScreen()
+                        AppScreen.Home -> HomeFeedScreen()
                         AppScreen.Rooms -> RoomsScreen()
                         AppScreen.Stargazer -> HomeScreen()
                         AppScreen.Shop -> ShopScreen()
@@ -112,7 +112,7 @@ fun MainScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val screens = listOf(
-                            AppScreen.Feed,
+                            AppScreen.Home,
                             AppScreen.Rooms,
                             AppScreen.Stargazer,
                             AppScreen.Shop,
@@ -174,13 +174,6 @@ fun AsteroidLoadingScreen() {
             modifier = Modifier.padding(top = 100.dp),
             style = MaterialTheme.typography.headlineSmall
         )
-    }
-}
-
-@Composable
-fun ShopScreen() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Exquisite Space Shop (Coming Soon)")
     }
 }
 
