@@ -27,6 +27,32 @@ import com.yash.skypulse.ui.theme.WeatherState
 import com.yash.skypulse.ui.theme.WeatherViewModel
 
 @Composable
+fun getWeatherGradient(condition: String?): Brush {
+    // Default deep space / clear night vibe
+    val defaultColors = listOf(Color(0xFF0D1B2A), Color(0xFF1B2A47), Color(0xFF0D1B2A))
+    
+    if (condition == null) return Brush.verticalGradient(defaultColors)
+    
+    val lowerCondition = condition.lowercase()
+    
+    return when {
+        lowerCondition.contains("clear") -> Brush.verticalGradient(
+            listOf(Color(0xFF4A90E2), Color(0xFF50A7C2), Color(0xFFB0D5CE)) // Bright clear day
+        )
+        lowerCondition.contains("cloud") -> Brush.verticalGradient(
+            listOf(Color(0xFF757F9A), Color(0xFFD7DDE8)) // Moody cloudy sky
+        )
+        lowerCondition.contains("rain") || lowerCondition.contains("drizzle") -> Brush.verticalGradient(
+            listOf(Color(0xFF2C3E50), Color(0xFF3498DB)) // Dark rainy blues
+        )
+        lowerCondition.contains("thunder") -> Brush.verticalGradient(
+            listOf(Color(0xFF141E30), Color(0xFF243B55)) // Stormy dark
+        )
+        else -> Brush.verticalGradient(defaultColors)
+    }
+}
+
+@Composable
 fun HomeScreen(viewModel: WeatherViewModel = viewModel()) {
     var searchText by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
@@ -35,18 +61,15 @@ fun HomeScreen(viewModel: WeatherViewModel = viewModel()) {
         viewModel.fetchWeather("Delhi")
     }
 
+    val backgroundBrush = when (val state = uiState) {
+        is WeatherState.Success -> getWeatherGradient(state.weather.weather.firstOrNull()?.description)
+        else -> Brush.verticalGradient(listOf(Color(0xFF87CEEB), Color(0xFF4682B4), Color(0xFF0D1B2A)))
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF87CEEB),
-                        Color(0xFF4682B4),
-                        Color(0xFF0D1B2A),
-                    ),
-                )
-            )
+            .background(backgroundBrush)
     ) {
         Column(
             modifier = Modifier

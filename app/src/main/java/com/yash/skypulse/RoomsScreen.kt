@@ -21,8 +21,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoomsScreen() {
+    var showPasskeyDialog by remember { mutableStateOf(false) }
+    var showJoinRoomSheet by remember { mutableStateOf(false) }
+    var selectedRoom by remember { mutableStateOf<ChannelItem?>(null) }
+    val sheetState = rememberModalBottomSheetState()
+
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -41,13 +47,45 @@ fun RoomsScreen() {
             RoomHeader()
             
             Box(modifier = Modifier.weight(1f)) {
-                ChannelList()
+                ChannelList(
+                    onChannelClick = { item ->
+                        selectedRoom = item
+                        if (item.isPrivate) {
+                            showPasskeyDialog = true
+                        } else {
+                            showJoinRoomSheet = true
+                        }
+                    }
+                )
             }
             
             UserStatusCard()
             
             // Padding for the bottom navigation pill
             Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
+
+    // 3. Interactive Modals
+    if (showPasskeyDialog && selectedRoom != null) {
+        PasskeyDialog(
+            roomName = selectedRoom!!.name,
+            onDismiss = { showPasskeyDialog = false },
+            onConfirm = { passkey ->
+                // Future backend logic goes here
+                showPasskeyDialog = false
+                showJoinRoomSheet = true // Proceed to join sheet if valid (mocked)
+            }
+        )
+    }
+
+    if (showJoinRoomSheet && selectedRoom != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showJoinRoomSheet = false },
+            sheetState = sheetState,
+            containerColor = Color(0xFF1B2A47) // Space theme sheet
+        ) {
+            JoinRoomSheetContent(room = selectedRoom!!)
         }
     }
 }
@@ -126,7 +164,7 @@ fun RoomHeader() {
 }
 
 @Composable
-fun ChannelList() {
+fun ChannelList(onChannelClick: (ChannelItem) -> Unit) {
     val categories = listOf(
         ChannelCategory("MISSION BRIEFING", listOf(
             ChannelItem("announcements", Icons.Default.Campaign),
@@ -158,7 +196,7 @@ fun ChannelList() {
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 category.items.forEach { item ->
-                    ChannelRow(item)
+                    ChannelRow(item, onClick = { onChannelClick(item) })
                 }
             }
         }
@@ -166,12 +204,12 @@ fun ChannelList() {
 }
 
 @Composable
-fun ChannelRow(item: ChannelItem) {
+fun ChannelRow(item: ChannelItem, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable { /* Join Room */ }
+            .clickable(onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -246,6 +284,109 @@ fun UserStatusCard() {
                 Icon(Icons.Default.Settings, contentDescription = null, tint = Color.White.copy(alpha = 0.7f))
             }
         }
+    }
+}
+
+@Composable
+fun PasskeyDialog(roomName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var passkey by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF0D1B2A), // Space theme dialog
+        titleContentColor = Color.White,
+        textContentColor = Color.White,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = Color.Red)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Restricted Access")
+            }
+        },
+        text = {
+            Column {
+                Text("Room: #$roomName\nEnter clearance code to proceed.")
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = passkey,
+                    onValueChange = { passkey = it },
+                    label = { Text("Passkey", color = Color.Gray) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(passkey) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Authenticate")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Abort", color = Color.Gray)
+            }
+        }
+    )
+}
+
+@Composable
+fun JoinRoomSheetContent(room: ChannelItem) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = room.icon,
+                contentDescription = null,
+                tint = if (room.isLive) Color.Red else Color.White,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "Join #${room.name}",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+        
+        Text(
+            text = if (room.isLive) "Event is currently live!" else "Voice and text comms open.",
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 14.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(32.dp))
+        
+        Button(
+            onClick = { /* Handle actual join logic in future */ },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (room.isLive) Color.Red else MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text("Connect", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+        
+        Spacer(modifier = Modifier.height(32.dp)) // Extra padding for safe area
     }
 }
 

@@ -1,12 +1,17 @@
 package com.yash.skypulse
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -67,8 +72,8 @@ fun ShopScreen() {
         // 1. Store Header & Search
         ShopHeader()
 
-        // 2. Promotional Sale Banner
-        SaleBanner()
+        // 2. Promotional Sale Carousel
+        PromoCarousel()
 
         // 3. Category Pills
         LazyRow(
@@ -145,52 +150,92 @@ fun ShopHeader() {
 }
 
 @Composable
-fun SaleBanner() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .height(140.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(Color(0xFF4B0082), Color(0xFF000000)) // Deep purple to black
-                )
-            )
-    ) {
-        // Starry decoration effect (simulated with emojis for now)
-        Text("✨", modifier = Modifier.padding(16.dp).align(Alignment.TopEnd), fontSize = 24.sp)
-        Text("🚀", modifier = Modifier.padding(16.dp).align(Alignment.BottomEnd), fontSize = 32.sp)
+fun PromoCarousel() {
+    val banners = listOf(
+        Triple("STELLAR SALE", "Up to 50% Off", "Telescopes & Gear"),
+        Triple("NEW ARRIVAL", "Martian Soil", "Authentic Display Pieces"),
+        Triple("LIMITED EDITION", "Webb Posters", "Signed by the team")
+    )
+    
+    val pagerState = rememberPagerState(pageCount = { banners.size })
 
-        Column(
+    Column {
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(24.dp)
-        ) {
-            Surface(
-                color = Color(0xFFFFD700), // Gold
-                shape = RoundedCornerShape(4.dp)
+                .fillMaxWidth()
+                .height(150.dp)
+        ) { page ->
+            val banner = banners[page]
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = if (page % 2 == 0) {
+                                listOf(Color(0xFF4B0082), Color(0xFF000000)) // Deep purple
+                            } else {
+                                listOf(Color(0xFF0F2027), Color(0xFF203A43)) // Deep teal
+                            }
+                        )
+                    )
             ) {
-                Text(
-                    text = "STELLAR SALE",
-                    color = Color.Black,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                Text("✨", modifier = Modifier.padding(16.dp).align(Alignment.TopEnd), fontSize = 24.sp)
+                Text("🚀", modifier = Modifier.padding(16.dp).align(Alignment.BottomEnd), fontSize = 32.sp)
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(24.dp)
+                ) {
+                    Surface(
+                        color = Color(0xFFFFD700),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = banner.first,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = banner.second,
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = banner.third,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+        
+        // Pager Indicators
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            repeat(banners.size) { iteration ->
+                val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.3f)
+                Box(
+                    modifier = Modifier
+                        .padding(2.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                        .size(6.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Up to 50% Off",
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Telescopes & Gear",
-                color = Color.White.copy(alpha = 0.8f),
-                fontSize = 14.sp
-            )
         }
     }
 }
@@ -220,8 +265,25 @@ fun CategoryPill(category: ShopCategory, isSelected: Boolean, onClick: () -> Uni
 
 @Composable
 fun ProductCard(product: Product) {
+    var isAdded by remember { mutableStateOf(false) }
+    
+    // Animation for the button color
+    val buttonColor by animateColorAsState(
+        targetValue = if (isAdded) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+        animationSpec = tween(durationMillis = 300),
+        label = "buttonColor"
+    )
+
+    // Reset the button after 2 seconds
+    LaunchedEffect(isAdded) {
+        if (isAdded) {
+            kotlinx.coroutines.delay(2000)
+            isAdded = false
+        }
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { /* View product details */ },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f))
     ) {
@@ -313,13 +375,17 @@ fun ProductCard(product: Product) {
                 
                 // Add to Cart Button
                 Button(
-                    onClick = { /* Add to cart */ },
+                    onClick = { isAdded = true },
                     modifier = Modifier.fillMaxWidth().height(36.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("Add to Cart", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isAdded) "Added! ✔️" else "Add to Cart", 
+                        fontSize = 12.sp, 
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
