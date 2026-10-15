@@ -1,36 +1,54 @@
-# SkyPulse: Cosmic Ecosystem Prototype 🌌
+# SkyPulse
 
-SkyPulse is a high-fidelity front-end prototype for a space-centric social and utility ecosystem. It demonstrates advanced Android development patterns, focusing on modular UI design, reactive state management, and immersive user experiences.
+SkyPulse is an Android application evolving from a weather utility into a comprehensive, multi-module social e-commerce platform. Built with modern Android development practices, SkyPulse leverages Jetpack Compose for a reactive UI and integrates a robust backend architecture to support social feeds, real-time chat, and an integrated shopping experience.
 
-## 🚀 Technical Highlights
+## 📱 Features
 
-This project was built to showcase modern Android engineering standards:
+Currently implemented and in active development:
 
-*   **Jetpack Compose:** The entire UI is built declaratively using Material 3 guidelines, moving away from legacy XML layouts.
-*   **MVVM Architecture:** Business logic is decoupled from the UI. The app utilizes `ViewModel` and `StateFlow` to ensure the UI reacts predictably to state changes (Loading, Success, Error).
-*   **Advanced Navigation:** Implemented a custom nested-scroll dynamic bottom navigation bar ("Floating Pill") to maximize screen real estate for content-heavy feeds.
-*   **Polymorphic UI:** The `HomeFeedScreen` uses `LazyColumn` to seamlessly render different data types (Live Streams, Videos, Articles) within a unified feed structure.
-*   **Secure Configuration:** Sensitive credentials (API keys for external data) are secured using Gradle `BuildConfig` and `local.properties`, ensuring they are kept out of version control.
-*   **Robust Error Handling:** Designed custom thematic empty/error states (e.g., "Barren Mars" connection loss) to maintain user immersion even during network failures.
+*   **Atmospheric & Space Data (Current):** Real-time weather and astronomical data fetching utilizing Retrofit, Coroutines, and a reactive UI state. Data is aggregated from trusted sources like **NASA** and **ISRO** APIs.
+*   **Space & Tech Social Feed:** A dynamic home feed aggregating space news, astronomical photos, and articles from leading space agencies and tech sources.
+*   **Real-time Chat Rooms:** Themed discussion rooms enabling real-time communication between space enthusiasts and users.
+*   **Integrated Shop:** A full e-commerce module allowing users to browse space-themed merchandise, manage a shopping cart, and complete checkouts with automated email confirmations.
+*   **User Profiles:** Comprehensive user management including profile customization and authentication.
 
-## 📱 Modules Built (Phase 1)
+## 🛠️ Technology Stack
 
-1.  **Cosmic Feed:** A scrolling content hub featuring async image loading (via Coil) and dynamic card layouts.
-2.  **Mission Control (Rooms):** A complex, nested hierarchy UI inspired by Discord, designed for future real-time public/private chat integration.
-3.  **Stargazer:** A live astronomical utility (currently hooked into OpenWeather) featuring custom data-driven views and event placeholders.
-4.  **Exquisite Space Shop:** An e-commerce grid utilizing `LazyVerticalGrid`, demonstrating standard retail UX patterns (strikethrough pricing, ratings, 'Add to Cart' hierarchy).
-5.  **Explorer Profile:** A YouTube-style profile layout with horizontal scrolling tabs and an interactive "Empty State" that uses State Recomposition to simulate data loading.
+SkyPulse demonstrates proficiency in both modern Android frontend development and scalable backend architecture.
 
-## 🛠️ Tech Stack
+### Android Client (Frontend)
 *   **Language:** Kotlin
 *   **UI Toolkit:** Jetpack Compose (Material 3)
-*   **Architecture:** MVVM (Model-View-ViewModel)
-*   **Concurrency:** Kotlin Coroutines & Flows (`StateFlow`)
-*   **Networking:** Retrofit & Gson
+*   **Architecture:** MVVM (Model-View-ViewModel), Clean Architecture principles
+*   **Network:** Retrofit, OkHttp
+*   **Asynchrony:** Kotlin Coroutines & Flow (StateFlow)
 *   **Image Loading:** Coil
-*   **Animations:** Compose Animations & Lottie (Prepared)
+*   **Local Storage (Planned):** Room Database for Offline-First caching
+*   **Dependency Injection (Planned):** Dagger Hilt
 
-## 🔜 Phase 2 Roadmap
-*   Migration of local mock data to a custom backend / Firebase Firestore.
-*   Implementation of the Repository pattern for sophisticated data caching.
-*   Integration of WebSockets for real-time "Mission Control" chat functionality.
+### Backend Service (Architecture)
+The backend is structured using a microservices-inspired monolithic architecture built with Spring Boot.
+
+*   **Framework:** Java / Spring Boot
+*   **Authentication:** Spring Security with JWT (JSON Web Tokens)
+*   **Databases (Polyglot Persistence):**
+    *   **PostgreSQL:** Relational data management for Users, Products, Carts, and Orders. Ensures strict ACID compliance for transactions.
+    *   **MongoDB:** Document-based storage for the Home Feed. Provides flexibility for diverse post types (text, images, external articles).
+    *   **Redis:** In-memory data structure store used for Pub/Sub in real-time Chat Rooms and fast session/cart caching.
+*   **Real-time Communication:** WebSockets (Spring WebSocket) for chat rooms.
+*   **Email Service:** JavaMailSender integrated with SMTP for transactional emails (Checkout Confirmations).
+
+## 🏗️ System Architecture (High-Level Design)
+
+1.  **Client-Server Interaction:** The Android Compose app communicates with the Spring Boot backend via REST APIs for the Shop, Feed, and Profile modules.
+2.  **Real-Time Data:** The Chat Room module utilizes WebSockets for bi-directional, low-latency messaging, orchestrated via Redis Pub/Sub to allow horizontal scaling of the backend.
+3.  **Checkout Workflow:** When a user initiates a checkout, the Spring Boot application processes the transaction against the PostgreSQL database, clears the user's cart, and triggers an asynchronous email confirmation via JavaMailSender.
+4.  **Content Delivery:** Feed content is aggregated from MongoDB, allowing for flexible schemas to accommodate evolving media types.
+
+## 🚀 Future Roadmap & Active Development
+
+*   **Phase 1:** Complete migration to Dagger Hilt for robust dependency injection across all ViewModels and Repositories.
+*   **Phase 2:** Implement Room Database caching to support an Offline-First experience for the Shop and Feed modules.
+*   **Phase 3:** Finalize Spring Boot API endpoints for the Shop module and integrate the Android client checkout flow.
+*   **Phase 4:** Establish WebSocket connections for the Chat Rooms feature.
+*   **Phase 5:** Expand unit testing coverage utilizing JUnit 5 and Turbine for Kotlin Flows.

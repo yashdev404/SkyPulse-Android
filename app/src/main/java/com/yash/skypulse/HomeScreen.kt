@@ -331,7 +331,7 @@ fun BarrenMarsErrorScreen(message: String, onRetry: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "🏜️", 
+                    text = "🏜️",
                     fontSize = 64.sp
                 )
             }

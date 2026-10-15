@@ -15,6 +15,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
@@ -31,35 +33,77 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 
 data class ShopCategory(val id: String, val name: String, val emoji: String)
-data class Product(
-    val id: String,
-    val name: String,
-    val price: Double,
-    val originalPrice: Double? = null,
-    val rating: Double,
-    val reviewCount: Int,
-    val imageUrl: String,
-    val isBestseller: Boolean = false
-)
+
+class ShopViewModel : ViewModel() {
+    private val _products = MutableStateFlow<List<Product>>(emptyList())
+    val products: StateFlow<List<Product>> = _products
+
+    private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
+    val cart: StateFlow<List<CartItem>> = _cart
+
+    init {
+        fetchProductsFromBackend()
+    }
+    
+    private fun fetchProductsFromBackend() {
+        viewModelScope.launch {
+            try {
+                val response = BackendRetrofitInstance.api.getProducts()
+                if (response.isSuccessful && response.body() != null) {
+                    _products.value = response.body()!!
+                } else {
+                    println("API Error: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                println("Network Error: ${e.message}")
+            }
+        }
+    }
+
+    fun addToCart(product: Product) {
+        val currentCart = _cart.value.toMutableList()
+        val existingItem = currentCart.find { it.product.id == product.id }
+        
+        if (existingItem != null) {
+            existingItem.quantity += 1
+        } else {
+            currentCart.add(CartItem(product, 1))
+        }
+        _cart.value = currentCart
+    }
+    
+    fun getCartTotal(): Double {
+        return _cart.value.sumOf { it.product.price * it.quantity }
+    }
+    
+    fun checkout() {
+        // Here we will eventually make a POST request to Spring Boot to create an Order
+        _cart.value = emptyList() // Clear cart on successful checkout
+    }
+}
 
 @Composable
-fun ShopScreen() {
+fun ShopScreen(viewModel: ShopViewModel = viewModel()) {
+    val products by viewModel.products.collectAsState()
+    val cart by viewModel.cart.collectAsState()
+    var showCartSheet by remember { mutableStateOf(false) }
+
     val categories = listOf(
         ShopCategory("1", "Telescopes", "🔭"),
         ShopCategory("2", "Apparel", "👕"),
         ShopCategory("3", "Meteorites", "🪨"),
         ShopCategory("4", "Posters", "🖼️"),
         ShopCategory("5", "Tech", "🛰️")
-    )
-
-    val products = listOf(
-        Product("1", "Orion SkyQuest XT8 Classic Dobsonian", 459.99, 499.99, 4.8, 1240, "https://developer.android.com/static/images/brand/android-logo.png", true),
-        Product("2", "NASA Vintage Worm Logo Hoodie", 45.00, null, 4.9, 856, "https://developer.android.com/static/images/brand/android-logo.png", true),
-        Product("3", "Authentic Campo del Cielo Meteorite", 120.00, 150.00, 4.7, 92, "https://developer.android.com/static/images/brand/android-logo.png"),
-        Product("4", "James Webb Space Telescope Model", 85.50, 95.00, 4.6, 215, "https://developer.android.com/static/images/brand/android-logo.png")
     )
 
     var selectedCategory by remember { mutableStateOf(categories[0].id) }
@@ -70,7 +114,7 @@ fun ShopScreen() {
             .background(Color(0xFF0D1B2A))
     ) {
         // 1. Store Header & Search
-        ShopHeader()
+        ShopHeader(cartCount = cart.sumOf { it.quantity }, onCartClick = { showCartSheet = true })
 
         // 2. Promotional Sale Carousel
         PromoCarousel()
@@ -99,14 +143,26 @@ fun ShopScreen() {
             modifier = Modifier.fillMaxSize()
         ) {
             items(products) { product ->
-                ProductCard(product)
+                ProductCard(product, onAddClick = { viewModel.addToCart(product) })
             }
         }
+    }
+    
+    if (showCartSheet) {
+        CartBottomSheet(
+            cartItems = cart,
+            total = viewModel.getCartTotal(),
+            onDismiss = { showCartSheet = false },
+            onCheckout = { 
+                viewModel.checkout()
+                showCartSheet = false
+            }
+        )
     }
 }
 
 @Composable
-fun ShopHeader() {
+fun ShopHeader(cartCount: Int, onCartClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -133,18 +189,25 @@ fun ShopHeader() {
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.1f)),
+                .background(Color.White.copy(alpha = 0.1f))
+                .clickable { onCartClick() },
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Default.ShoppingCart, contentDescription = "Cart", tint = Color.White)
             // Notification Badge
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .align(Alignment.TopEnd)
-                    .clip(CircleShape)
-                    .background(Color.Red)
-            )
+            if (cartCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-4).dp, y = 4.dp)
+                        .clip(CircleShape)
+                        .background(Color.Red),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(cartCount.toString(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
@@ -264,7 +327,7 @@ fun CategoryPill(category: ShopCategory, isSelected: Boolean, onClick: () -> Uni
 }
 
 @Composable
-fun ProductCard(product: Product) {
+fun ProductCard(product: Product, onAddClick: () -> Unit) {
     var isAdded by remember { mutableStateOf(false) }
     
     // Animation for the button color
@@ -375,7 +438,10 @@ fun ProductCard(product: Product) {
                 
                 // Add to Cart Button
                 Button(
-                    onClick = { isAdded = true },
+                    onClick = {
+                        isAdded = true
+                        onAddClick()
+                    },
                     modifier = Modifier.fillMaxWidth().height(36.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
                     shape = RoundedCornerShape(8.dp),

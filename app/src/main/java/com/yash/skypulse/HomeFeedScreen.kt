@@ -7,8 +7,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,29 +30,45 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-enum class FeedType { VIDEO, ARTICLE, POST, LIVE }
-
-data class FeedItem(
-    val id: String,
-    val type: FeedType,
-    val title: String,
-    val author: String,
-    val timestamp: String,
-    val content: String = "",
-    val imageUrl: String? = null
-)
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 
 class HomeFeedViewModel : ViewModel() {
     private val _feedItems = MutableStateFlow<List<FeedItem>>(emptyList())
     val feedItems: StateFlow<List<FeedItem>> = _feedItems
 
     init {
-        _feedItems.value = listOf(
-            FeedItem("1", FeedType.LIVE, "Live: James Webb New Discovery", "NASA", "2m ago", imageUrl = "https://developer.android.com/static/images/brand/android-logo.png"),
-            FeedItem("2", FeedType.ARTICLE, "Water Found on Mars Surface", "SpaceX", "1h ago", content = "Detailed analysis of recent rover data reveals potential subsurface water...", imageUrl = "https://developer.android.com/static/images/brand/android-logo.png"),
-            FeedItem("3", FeedType.VIDEO, "The Future of Mars Colonies", "Elon Musk", "3h ago", imageUrl = "https://developer.android.com/static/images/brand/android-logo.png"),
-            FeedItem("4", FeedType.POST, "Check out this beautiful nebula!", "Astronomy Daily", "5h ago", content = "Captured this from my backyard telescope last night. The colors are insane.", imageUrl = "https://developer.android.com/static/images/brand/android-logo.png")
-        )
+        fetchFeedFromBackend()
+    }
+
+    private fun fetchFeedFromBackend() {
+        viewModelScope.launch {
+            try {
+                // Call the Spring Boot API
+                val response = BackendRetrofitInstance.api.getHomeFeed()
+                if (response.isSuccessful && response.body() != null) {
+                    _feedItems.value = response.body()!!
+                } else {
+                    println("API Error: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                println("Network Error: ${e.message}")
+            }
+        }
+    }
+
+    // This method will eventually make a Retrofit call to POST /api/v1/feed/{id}/like
+    fun toggleLike(itemId: String) {
+        _feedItems.value = _feedItems.value.map { item ->
+            if (item.id == itemId) {
+                val newLikeStatus = !item.likedByMe
+                val newCount = if (newLikeStatus) item.likesCount + 1 else item.likesCount - 1
+                item.copy(likedByMe = newLikeStatus, likesCount = newCount)
+            } else {
+                item
+            }
+        }
     }
 }
 
@@ -65,28 +85,28 @@ fun HomeFeedScreen(viewModel: HomeFeedViewModel = viewModel()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(top = 48.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("SkyPulse", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                Text("Cosmic Feed", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+                Text("SkyPulse", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Cosmic Feed", color = Color(0xFF4A90E2), fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("🚀", fontSize = 20.sp)
+                Text("🚀", fontSize = 22.sp)
             }
         }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp), // Extra bottom padding for floating nav
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -94,7 +114,7 @@ fun HomeFeedScreen(viewModel: HomeFeedViewModel = viewModel()) {
             }
             
             items(feedItems) { item ->
-                FeedCard(item)
+                FeedCard(item = item, onLikeClick = { viewModel.toggleLike(item.id) })
             }
         }
     }
@@ -110,7 +130,7 @@ fun FeaturedStory() {
         colors = CardDefaults.cardColors(containerColor = Color.Transparent)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Gradient placeholder
+            // Gradient placeholder for Featured Image
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -132,7 +152,8 @@ fun FeaturedStory() {
                 ) {
                     Text("LIVE", color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
-                Text("NASA Mars Mission Updates", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Artemis Base Camp Setup", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("12.5k watching now", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
             }
         }
@@ -140,15 +161,56 @@ fun FeaturedStory() {
 }
 
 @Composable
-fun FeedCard(item: FeedItem) {
+fun FeedCard(item: FeedItem, onLikeClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1B2A47)) // Slightly lighter than background
     ) {
         Column {
+            // User / Author Info Row
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFF4A90E2)), contentAlignment = Alignment.Center) {
+                    Text(item.author.take(1), color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                    Text(text = item.author, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "${item.authorRole} • ${item.timestamp}", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                }
+                IconButton(onClick = { /* Menu */ }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White.copy(alpha = 0.5f))
+                }
+            }
+
+            // Post Content
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Text(
+                    text = item.type.name,
+                    color = Color(0xFF4A90E2),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                Text(text = item.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                
+                if (item.content.isNotBlank()) {
+                    Text(
+                        text = item.content,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp,
+                        maxLines = 3,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+                    )
+                }
+            }
+
+            // Optional Image/Video
             if (item.imageUrl != null) {
-                Box(modifier = Modifier.height(200.dp).fillMaxWidth()) {
+                Box(modifier = Modifier.height(200.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp))) {
                     AsyncImage(
                         model = item.imageUrl,
                         contentDescription = null,
@@ -162,47 +224,46 @@ fun FeedCard(item: FeedItem) {
                             shape = CircleShape,
                             color = Color.Black.copy(alpha = 0.5f)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.padding(12.dp))
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Play Video", tint = Color.White, modifier = Modifier.padding(12.dp))
                         }
                     }
                 }
             }
             
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = item.type.name,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(text = item.timestamp, color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp)
+            // Engagement Row (Like, Comment, Share)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Like Button
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onLikeClick) {
+                        Icon(
+                            imageVector = if (item.likedByMe) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (item.likedByMe) Color.Red else Color.White
+                        )
+                    }
+                    Text(text = item.likesCount.toString(), color = Color.White, fontSize = 14.sp)
                 }
                 
-                Text(text = item.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                Spacer(modifier = Modifier.width(16.dp))
                 
-                if (item.content.isNotBlank()) {
-                    Text(
-                        text = item.content,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
-                        maxLines = 2,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+                // Comment Button
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { /* Open Comments */ }) {
+                        Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Comment", tint = Color.White)
+                    }
+                    Text(text = item.commentsCount.toString(), color = Color.White, fontSize = 14.sp)
                 }
                 
-                Row(
-                    modifier = Modifier.padding(top = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.Gray))
-                    Text(text = item.author, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
-                    Spacer(modifier = Modifier.weight(1f))
-                    Icon(Icons.Default.MoreVert, contentDescription = null, tint = Color.White.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.weight(1f))
+                
+                // Share Button
+                IconButton(onClick = { /* Share */ }) {
+                    Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
                 }
             }
         }
