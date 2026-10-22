@@ -24,9 +24,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import okhttp3.*
+import com.google.gson.Gson
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,6 +45,10 @@ class RoomsViewModel : ViewModel() {
     private val _activeRoom = MutableStateFlow<ChatRoom?>(null)
     val activeRoom: StateFlow<ChatRoom?> = _activeRoom
 
+    private var webSocket: WebSocket? = null
+    private val client = OkHttpClient()
+    private val gson = Gson()
+
     init {
         // MOCK DATA: Simulating /api/v1/rooms
         _rooms.value = listOf(
@@ -53,14 +61,50 @@ class RoomsViewModel : ViewModel() {
 
     fun joinRoom(room: ChatRoom) {
         _activeRoom.value = room
-        // MOCK DATA: Simulating fetching historical messages from DB when joining
-        _messages.value = listOf(
-            ChatMessage(roomId = room.id, senderName = "System", message = "Welcome to ${room.name}!", timestamp = "12:00 PM", isMe = false),
-            ChatMessage(roomId = room.id, senderName = "AstroBob", message = "Did anyone catch the meteor shower last night?", timestamp = "12:05 PM", isMe = false)
-        )
+        _messages.value = emptyList() // Clear old messages
+        
+        // 1. Fetch persistent chat history from MongoDB via REST API!
+        viewModelScope.launch {
+            try {
+                val response = BackendRetrofitInstance.api.getRoomHistory(room.id)
+                if (response.isSuccessful && response.body() != null) {
+                    val history = response.body()!!.map { msg ->
+                        if (msg.senderName != "Yash") msg.copy(isMe = false) else msg.copy(isMe = true)
+                    }
+                    _messages.value = history
+                }
+            } catch (e: Exception) {
+                println("Failed to fetch chat history: ${e.message}")
+            }
+        }
+        
+        // 2. Connect to Spring Boot WebSocket for live updates!
+        val request = Request.Builder().url("ws://10.0.2.2:8080/chat").build()
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                // We received a message from Spring Boot!
+                val incomingMsg = gson.fromJson(text, ChatMessage::class.java)
+                
+                // If it's from someone else, make sure isMe is false
+                val processedMsg = if (incomingMsg.senderName != "Yash") {
+                    incomingMsg.copy(isMe = false)
+                } else {
+                    incomingMsg
+                }
+
+                // Add to our list
+                _messages.value = _messages.value + processedMsg
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                println("WebSocket Error: ${t.message}")
+            }
+        })
     }
 
     fun leaveRoom() {
+        webSocket?.close(1000, "User left")
+        webSocket = null
         _activeRoom.value = null
         _messages.value = emptyList()
     }
@@ -72,20 +116,15 @@ class RoomsViewModel : ViewModel() {
         val currentTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
         val newMessage = ChatMessage(
             roomId = room.id,
-            senderName = "You",
+            senderName = "Yash", // Hardcoded user
             message = text,
             timestamp = currentTime,
             isMe = true
         )
         
-        // This is where we will eventually call WebSocket session.sendMessage(newMessage)
-        _messages.value = _messages.value + newMessage
-        
-        // Simulate a bot reply for testing UI
-        if (text.contains("hello", ignoreCase = true)) {
-            val reply = ChatMessage(roomId = room.id, senderName = "AutoBot", message = "Greetings, Earthling!", timestamp = currentTime, isMe = false)
-            _messages.value = _messages.value + reply
-        }
+        // Convert to JSON and send to Spring Boot!
+        val jsonString = gson.toJson(newMessage)
+        webSocket?.send(jsonString)
     }
 }
 

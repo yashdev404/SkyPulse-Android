@@ -87,8 +87,26 @@ class ShopViewModel : ViewModel() {
     }
     
     fun checkout() {
-        // Here we will eventually make a POST request to Spring Boot to create an Order
-        _cart.value = emptyList() // Clear cart on successful checkout
+        viewModelScope.launch {
+            try {
+                val requestItems = _cart.value.map { 
+                    CartItemRequest(productId = it.product.id, quantity = it.quantity) 
+                }
+                val request = CheckoutRequest(items = requestItems)
+                
+                val response = BackendRetrofitInstance.api.checkout(request)
+                
+                if (response.isSuccessful) {
+                    println("Order Successful!")
+                    _cart.value = emptyList()
+                    fetchProductsFromBackend() 
+                } else {
+                    println("Checkout Failed: ${response.errorBody()?.string()}")
+                }
+            } catch (e: Exception) {
+                println("Network Error during checkout: ${e.message}")
+            }
+        }
     }
 }
 

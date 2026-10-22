@@ -15,8 +15,18 @@ data class Product(
     val originalPrice: Double? = null
 )
 
-// This matches the JSON we will send to Spring Boot: POST /api/v1/cart
+// Represents an item in the user's local cart
 data class CartItem(
     val product: Product,
     var quantity: Int
+)
+
+// These match the JSON we will send to Spring Boot: POST /api/v1/shop/checkout
+data class CheckoutRequest(
+    val items: List<CartItemRequest>
+)
+
+data class CartItemRequest(
+    val productId: String,
+    val quantity: Int
 )
