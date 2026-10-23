@@ -39,6 +39,13 @@ sealed class AppScreen(val icon: ImageVector, val label: String) {
 
 @Composable
 fun MainScreen(authViewModel: AuthViewModel = viewModel()) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    // Auto-login on launch if token is saved in SharedPreferences!
+    LaunchedEffect(Unit) {
+        authViewModel.initSession(context)
+    }
+
     var isLoading by remember { mutableStateOf(true) }
     var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
     val authState by authViewModel.authState.collectAsState()

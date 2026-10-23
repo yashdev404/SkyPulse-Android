@@ -27,12 +27,27 @@ class AuthViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
+    private var tokenManager: TokenManager? = null
+
+    fun initSession(context: android.content.Context) {
+        if (tokenManager == null) {
+            tokenManager = TokenManager(context)
+            // Auto-login if token already exists in SharedPreferences!
+            val savedUser = tokenManager?.getUserDetails()
+            if (savedUser != null) {
+                _authState.value = savedUser
+            }
+        }
+    }
+
     fun login(username: String, password: String) {
         viewModelScope.launch {
             try {
                 val response = BackendRetrofitInstance.api.login(LoginRequest(username, password))
                 if (response.isSuccessful && response.body() != null) {
-                    _authState.value = response.body()
+                    val authData = response.body()!!
+                    tokenManager?.saveAuthResponse(authData) // Save JWT securely!
+                    _authState.value = authData
                     _errorMessage.value = null
                 } else {
                     _errorMessage.value = "Invalid credentials!"
@@ -48,7 +63,9 @@ class AuthViewModel : ViewModel() {
             try {
                 val response = BackendRetrofitInstance.api.register(RegisterRequest(username, email, password, dob))
                 if (response.isSuccessful && response.body() != null) {
-                    _authState.value = response.body()
+                    val authData = response.body()!!
+                    tokenManager?.saveAuthResponse(authData) // Save JWT securely!
+                    _authState.value = authData
                     _errorMessage.value = null
                 } else {
                     _errorMessage.value = "Registration failed! Username or email taken."
@@ -60,6 +77,7 @@ class AuthViewModel : ViewModel() {
     }
 
     fun logout() {
+        tokenManager?.clear() // Wipe JWT on logout
         _authState.value = null
     }
 }
