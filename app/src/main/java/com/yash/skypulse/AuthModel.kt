@@ -19,3 +19,9 @@ data class AuthResponse(
     val username: String,
     val email: String
 )
+
+data class ChangePasswordRequest(
+    val username: String,
+    val oldPassword: String,
+    val newPassword: String
+)

@@ -86,18 +86,18 @@ class ShopViewModel : ViewModel() {
         return _cart.value.sumOf { it.product.price * it.quantity }
     }
     
-    fun checkout() {
+    fun checkout(username: String = "yash") {
         viewModelScope.launch {
             try {
                 val requestItems = _cart.value.map { 
                     CartItemRequest(productId = it.product.id, quantity = it.quantity) 
                 }
-                val request = CheckoutRequest(items = requestItems)
+                val request = CheckoutRequest(username = username, items = requestItems)
                 
                 val response = BackendRetrofitInstance.api.checkout(request)
                 
                 if (response.isSuccessful) {
-                    println("Order Successful!")
+                    println("Order Successful for $username!")
                     _cart.value = emptyList()
                     fetchProductsFromBackend() 
                 } else {
@@ -111,7 +111,10 @@ class ShopViewModel : ViewModel() {
 }
 
 @Composable
-fun ShopScreen(viewModel: ShopViewModel = viewModel()) {
+fun ShopScreen(
+    viewModel: ShopViewModel = viewModel(),
+    currentUsername: String = "yash"
+) {
     val products by viewModel.products.collectAsState()
     val cart by viewModel.cart.collectAsState()
     var showCartSheet by remember { mutableStateOf(false) }
@@ -172,7 +175,7 @@ fun ShopScreen(viewModel: ShopViewModel = viewModel()) {
             total = viewModel.getCartTotal(),
             onDismiss = { showCartSheet = false },
             onCheckout = { 
-                viewModel.checkout()
+                viewModel.checkout(currentUsername)
                 showCartSheet = false
             }
         )

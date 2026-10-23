@@ -26,34 +26,60 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SkyPulseProfileScreen() {
-    // MOCK DATA: This simulates what our Spring Boot backend will return via Retrofit!
-    val mockUser = remember {
-        UserProfile(
-            id = "USR-1001",
-            username = "Yash Shukla",
-            email = "yash@skypulse.app",
-            dateOfBirth = "1998-05-12",
-            bio = "Stargazer & Software Engineer. Waiting for the Mars launch.",
-            profilePictureUrl = "",
-            spaceRank = "Commander 👨‍🚀",
-            joinedDate = "Oct 2026"
-        )
+fun SkyPulseProfileScreen(
+    authResponse: AuthResponse? = null,
+    onLogout: () -> Unit = {}
+) {
+    val userProfile = remember(authResponse) {
+        if (authResponse != null) {
+            UserProfile(
+                id = authResponse.userId,
+                username = authResponse.username,
+                email = authResponse.email,
+                dateOfBirth = "1998-05-12",
+                bio = "Commander of SkyPulse Station",
+                profilePictureUrl = "",
+                spaceRank = "Commander 👨‍🚀",
+                joinedDate = "Oct 2026"
+            )
+        } else {
+            UserProfile(
+                id = "USR-1001",
+                username = "Explorer",
+                email = "explorer@skypulse.app",
+                dateOfBirth = "2000-01-01",
+                bio = "Stargazer & Software Engineer.",
+                profilePictureUrl = "",
+                spaceRank = "Cadet 🚀",
+                joinedDate = "Oct 2026"
+            )
+        }
     }
 
-    val mockOrders = remember {
-        listOf(
-            OrderHistoryItem("ORD-77A", "NASA Apollo Hoodie", "Oct 04, 2026", "$45.00", "Shipped"),
-            OrderHistoryItem("ORD-77B", "James Webb Telescope Poster", "Sep 28, 2026", "$15.00", "Delivered")
-        )
+    val realOrders = remember { mutableStateListOf<OrderResponse>() }
+
+    // Fetch real PostgreSQL orders whenever Profile Screen opens
+    LaunchedEffect(userProfile.username) {
+        try {
+            val response = BackendRetrofitInstance.api.getUserOrders(userProfile.username)
+            if (response.isSuccessful && response.body() != null) {
+                realOrders.clear()
+                realOrders.addAll(response.body()!!)
+            }
+        } catch (e: Exception) {
+            println("Failed to fetch user orders: ${e.message}")
+        }
     }
 
     val userPosts = remember { mutableStateListOf<String>() }
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Posts", "Orders", "Badges")
+
+    var showPasswordDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -81,9 +107,9 @@ fun SkyPulseProfileScreen() {
                 .verticalScroll(rememberScrollState())
         ) {
             // 1. Profile Header (Space Themed)
-            ProfileHeader(mockUser)
+            ProfileHeader(userProfile)
 
-            // 2. Action Buttons
+            // 2. Action Buttons (Edit Profile, Change Password, & Logout)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -91,15 +117,23 @@ fun SkyPulseProfileScreen() {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { /* Edit Profile */ },
+                    onClick = { showPasswordDialog = true },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
-                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Edit Profile", color = Color.White, fontSize = 14.sp)
+                    Text("Password 🔑", color = Color.White, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = onLogout,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp)
+                ) {
+                    Text("Log Out", color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -146,9 +180,18 @@ fun SkyPulseProfileScreen() {
                     }
                     1 -> { // ORDERS TAB
                         Column(modifier = Modifier.padding(16.dp)) {
-                            mockOrders.forEach { order ->
-                                OrderItemRow(order)
-                                Spacer(modifier = Modifier.height(8.dp))
+                            if (realOrders.isEmpty()) {
+                                Text(
+                                    text = "No orders launched yet. Visit the Cosmic Shop!",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            } else {
+                                realOrders.forEach { order ->
+                                    OrderItemRow(order)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
                             }
                         }
                     }
@@ -161,6 +204,13 @@ fun SkyPulseProfileScreen() {
                 }
             }
         }
+    }
+
+    if (showPasswordDialog) {
+        ChangePasswordDialog(
+            username = userProfile.username,
+            onDismiss = { showPasswordDialog = false }
+        )
     }
 }
 
@@ -225,7 +275,7 @@ fun ProfileHeader(user: UserProfile) {
 }
 
 @Composable
-fun OrderItemRow(order: OrderHistoryItem) {
+fun OrderItemRow(order: OrderResponse) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
@@ -235,15 +285,15 @@ fun OrderItemRow(order: OrderHistoryItem) {
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color.White.copy(alpha = 0.5f))
+            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color(0xFF4A90E2))
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(order.productName, color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Order: ${order.orderId} • ${order.date}", color = Color.Gray, fontSize = 12.sp)
+                Text("${order.items.size} Space Item(s)", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Order ID: ${order.id.take(8)}...", color = Color.Gray, fontSize = 12.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(order.price, color = Color(0xFF4A90E2), fontWeight = FontWeight.Bold)
-                Text(order.status, color = if(order.status == "Delivered") Color.Green else Color.Yellow, fontSize = 12.sp)
+                Text("$${String.format(java.util.Locale.US, "%.2f", order.totalAmount)}", color = Color(0xFF4A90E2), fontWeight = FontWeight.Bold)
+                Text(order.status, color = if(order.status == "PAID") Color.Green else Color.Yellow, fontSize = 12.sp)
             }
         }
     }
@@ -298,4 +348,68 @@ fun UserContentGrid(posts: List<String>) {
             }
         }
     }
+}
+
+@Composable
+fun ChangePasswordDialog(username: String, onDismiss: () -> Unit) {
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1B2A47),
+        title = { Text("Change Password", color = Color.White) },
+        text = {
+            Column {
+                Text("Update credentials for $username", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = oldPassword,
+                    onValueChange = { oldPassword = it },
+                    label = { Text("Current Password", color = Color.White.copy(alpha = 0.7f)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    label = { Text("New Password", color = Color.White.copy(alpha = 0.7f)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+                if (statusMessage != null) {
+                    Text(statusMessage!!, color = if (statusMessage!!.contains("success", ignoreCase = true)) Color.Green else Color.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    scope.launch {
+                        try {
+                            val response = BackendRetrofitInstance.api.changePassword(
+                                ChangePasswordRequest(username, oldPassword, newPassword)
+                            )
+                            if (response.isSuccessful) {
+                                statusMessage = "Password updated successfully!"
+                            } else {
+                                statusMessage = "Failed: Invalid current password."
+                            }
+                        } catch (e: Exception) {
+                            statusMessage = "Error: ${e.message}"
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A90E2))
+            ) {
+                Text("Update")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
+        }
+    )
 }

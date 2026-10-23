@@ -23,10 +23,27 @@ data class CartItem(
 
 // These match the JSON we will send to Spring Boot: POST /api/v1/shop/checkout
 data class CheckoutRequest(
+    val username: String = "YashCommander",
     val items: List<CartItemRequest>
 )
 
 data class CartItemRequest(
     val productId: String,
     val quantity: Int
+)
+
+// Matches PostgreSQL Order response
+data class OrderResponse(
+    val id: String,
+    val customerName: String,
+    val totalAmount: Double,
+    val status: String,
+    val items: List<OrderItemResponse>
+)
+
+data class OrderItemResponse(
+    val id: String,
+    val productId: String,
+    val quantity: Int,
+    val priceAtPurchase: Double
 )

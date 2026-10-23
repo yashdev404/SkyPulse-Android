@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.yash.skypulse.ui.theme.SkyPulseTheme
 import kotlin.math.roundToInt
-// import com.airbnb.lottie.compose.*
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 sealed class AppScreen(val icon: ImageVector, val label: String) {
     object Home : AppScreen(Icons.Default.RssFeed, "Feed")
@@ -38,9 +38,10 @@ sealed class AppScreen(val icon: ImageVector, val label: String) {
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(authViewModel: AuthViewModel = viewModel()) {
     var isLoading by remember { mutableStateOf(true) }
     var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Home) }
+    val authState by authViewModel.authState.collectAsState()
 
     // Logic for hiding bar on scroll
     val bottomBarHeight = 80.dp
@@ -60,7 +61,7 @@ fun MainScreen() {
 
     // Simulate initial loading
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(3000)
+        kotlinx.coroutines.delay(2000)
         isLoading = false
     }
 
@@ -72,6 +73,12 @@ fun MainScreen() {
     ) {
         if (isLoading) {
             AsteroidLoadingScreen()
+        } else if (authState == null) {
+            // APP GATEKEEPER: Force user to login or register first!
+            LoginScreen(
+                viewModel = authViewModel,
+                onAuthSuccess = { /* Automatically switches state when authState != null */ }
+            )
         } else {
             // Main Content Area
             Box(modifier = Modifier.fillMaxSize()) {
@@ -84,8 +91,11 @@ fun MainScreen() {
                         AppScreen.Home -> HomeFeedScreen()
                         AppScreen.Rooms -> RoomsScreen()
                         AppScreen.Stargazer -> HomeScreen()
-                        AppScreen.Shop -> ShopScreen()
-                        AppScreen.Profile -> SkyPulseProfileScreen()
+                        AppScreen.Shop -> ShopScreen(currentUsername = authState?.username ?: "yash")
+                        AppScreen.Profile -> SkyPulseProfileScreen(
+                            authResponse = authState,
+                            onLogout = { authViewModel.logout() }
+                        )
                     }
                 }
             }

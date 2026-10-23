@@ -15,6 +15,9 @@ interface SkyPulseApi {
     @POST("/api/v1/auth/register")
     suspend fun register(@Body request: RegisterRequest): Response<AuthResponse>
 
+    @retrofit2.http.PUT("/api/v1/auth/password")
+    suspend fun changePassword(@Body request: ChangePasswordRequest): Response<String>
+
     // Calls the Spring Boot FeedController
     @GET("/api/v1/feed")
     suspend fun getHomeFeed(): Response<List<FeedItem>>
@@ -26,6 +29,10 @@ interface SkyPulseApi {
     // Calls the Spring Boot ShopController (Checkout)
     @POST("/api/v1/shop/checkout")
     suspend fun checkout(@Body request: CheckoutRequest): Response<Any>
+
+    // Calls the Spring Boot ShopController (Fetch User Orders from PostgreSQL)
+    @GET("/api/v1/shop/orders/{username}")
+    suspend fun getUserOrders(@Path("username") username: String): Response<List<OrderResponse>>
 
     // Calls the Spring Boot ChatController (Fetch Persistent Messages from MongoDB)
     @GET("/api/v1/rooms/{roomId}/messages")
