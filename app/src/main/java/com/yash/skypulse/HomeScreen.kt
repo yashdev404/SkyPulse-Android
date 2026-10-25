@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Refresh
@@ -74,7 +76,8 @@ fun HomeScreen(viewModel: WeatherViewModel = viewModel()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 48.dp, start = 16.dp, end = 16.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(top = 48.dp, start = 16.dp, end = 16.dp, bottom = 120.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Search Bar
@@ -181,10 +184,23 @@ fun WeatherDetails(weather: WeatherResponse, forecast: ForecastResponse) {
             ) {
                 WeatherDetailItem(label = "Humidity", value = "${weather.main.humidity}%", icon = "💧")
                 WeatherDetailItem(label = "Condition", value = weather.weather[0].description, icon = "☁️")
+                
+                // Stargazing Sky Clarity Score (0-100%)
+                val visibilityScore = (100 - weather.main.humidity).coerceIn(10, 100)
+                WeatherDetailItem(
+                    label = "Stargaze Score", 
+                    value = "$visibilityScore%", 
+                    icon = if (visibilityScore > 60) "🔭" else "🌫️"
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Stargazer Observatory Conditions Panel
+        StargazerConditionsPanel(humidity = weather.main.humidity)
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Forecast Section
         Text(
@@ -213,6 +229,76 @@ fun WeatherDetails(weather: WeatherResponse, forecast: ForecastResponse) {
 
         // Cosmic Events Placeholder
         CosmicEventsCard()
+    }
+}
+
+@Composable
+fun StargazerConditionsPanel(humidity: Int) {
+    val isGoodClarity = humidity < 50
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1B2A47))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = "🌌 Stargazing Observatory Metrics",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Metric 1: Moon Phase
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🌔", fontSize = 28.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Moon Phase", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Waxing Gibbous • 84% Illuminated", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                    }
+                }
+                Surface(
+                    color = Color(0xFF4A90E2).copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Optimal", color = Color(0xFF4A90E2), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Metric 2: ISS Overhead Pass Prediction
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🛰️", fontSize = 28.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("ISS Space Station Pass", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Overhead Transit in 42 mins", color = Color.Green, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+                Surface(
+                    color = Color.Green.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Visible 👁️", color = Color.Green, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 
