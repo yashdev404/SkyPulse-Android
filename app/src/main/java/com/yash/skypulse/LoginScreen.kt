@@ -30,6 +30,7 @@ class AuthViewModel : ViewModel() {
     private var tokenManager: TokenManager? = null
 
     fun initSession(context: android.content.Context) {
+        BackendRetrofitInstance.initialize(context) // Attach AuthInterceptor to Retrofit!
         if (tokenManager == null) {
             tokenManager = TokenManager(context)
             // Auto-login if token already exists in SharedPreferences!
