@@ -47,7 +47,7 @@ The backend is structured using a microservices-inspired monolithic architecture
 
 ## 🚀 Future Roadmap & Active Development
 
-*   **Phase 1:** Complete migration to Dagger Hilt for robust dependency injection across all ViewModels and Repositories.
+*   **Phase 1:** Complete migration to Dagger Hilt for robust dependency injection across all ViewModels and Repositories.(DONE)
 *   **Phase 2:** Implement Room Database caching to support an Offline-First experience for the Shop and Feed modules.
 *   **Phase 3:** Finalize Spring Boot API endpoints for the Shop module and integrate the Android client checkout flow.
 *   **Phase 4:** Establish WebSocket connections for the Chat Rooms feature.
