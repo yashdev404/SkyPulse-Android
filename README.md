@@ -16,11 +16,13 @@
 
 ---
 
-## 📖 Overview
+## 📖 Overview & Detailed Docs
 
 **SkyPulse** evolved from a hyper-focused atmospheric weather utility into a feature-rich, multi-domain Android ecosystem. Built with modern Android development standards, SkyPulse features a reactive, state-driven UI powered by **Jetpack Compose (Material 3)**, asynchronous data streams with **Kotlin Coroutines & Flow**, and a polyglot persistence **Spring Boot** backend.
 
-Whether checking local weather conditions, exploring space news, discussing astronomical discoveries in real-time lounges, or purchasing stargazing equipment, SkyPulse provides an intuitive and visual-first experience.
+For full architectural deep-dives, tech justifications, and use cases:
+* 📱 **[Android Frontend Architecture Documentation (FRONTEND.md)](FRONTEND.md)**
+* ⚙️ **[Spring Boot Backend Architecture Documentation (BACKEND.md)](BACKEND.md)**
 
 ---
 
@@ -51,30 +53,29 @@ Whether checking local weather conditions, exploring space news, discussing astr
 
 ---
 
-## 🛠️ Technology Stack
+## 🛠️ Technology Stack Overview
 
-### **Android Frontend**
-| Component | Technology / Library |
-| :--- | :--- |
-| **Language** | Kotlin 2.4+ |
-| **UI Framework** | Jetpack Compose (Material 3) |
-| **Architecture** | MVVM (Model-View-ViewModel) + Unidirectional Data Flow (UDF) |
-| **Networking** | Retrofit 3.0, Gson Converter, OkHttp 4 |
-| **Async & State** | Kotlin Coroutines & `StateFlow` / `SharedFlow` |
-| **Image Loading** | Coil Compose |
-| **Animations** | Lottie Compose |
-| **Splash Screen** | AndroidX Core Splashscreen |
+Detailed technology breakdowns and one-line architectural justifications are available in **[FRONTEND.md](FRONTEND.md)** and **[BACKEND.md](BACKEND.md)**.
 
-### **Backend Architecture**
-| Layer | Technology |
-| :--- | :--- |
-| **Framework** | Java 17/21 / Spring Boot 3 |
-| **Security** | Spring Security with Stateless JWT Authentication |
-| **Relational DB** | PostgreSQL (Users, Products, Cart, Orders & Transactions) |
-| **Document DB** | MongoDB (Feed Posts, Articles, Chat History) |
-| **In-Memory Caching** | Redis (Pub/Sub for Chat Rooms, Session Caching) |
-| **Real-time Protocol** | WebSockets (Spring WebSocket) |
-| **Email Service** | JavaMailSender (Transactional Checkout Confirmations) |
+### **Android Frontend** *(See [FRONTEND.md](FRONTEND.md))*
+| Component | Technology / Library | Why Used Over Counterpart |
+| :--- | :--- | :--- |
+| **Language** | Kotlin 2.4+ | Native null safety, extension functions, and first-class Coroutines support eliminate boilerplate and NPEs compared to Java. |
+| **UI Framework** | Jetpack Compose (Material 3) | Unidirectional data flow and reactive state-driven rendering eliminate layout inflation overhead compared to XML views. |
+| **Architecture** | MVVM + StateFlow | Cold stream execution, native Coroutine operators, and non-lifecycle dependency make StateFlow superior to LiveData. |
+| **Networking** | Retrofit 3.0 & OkHttp 4 | Industry-standard annotation-based interface definition with built-in OkHttp interceptor middleware for JWT injection. |
+| **WebSockets** | OkHttp WebSockets | Real-time bi-directional low-latency socket communication with negligible bandwidth and CPU overhead compared to HTTP polling. |
+| **Image Loading** | Coil Compose | Native Jetpack Compose & Coroutines integration with minimal memory footprint compared to Glide/Picasso. |
+
+### **Backend Architecture** *(See [BACKEND.md](BACKEND.md))*
+| Layer | Technology | Why Used Over Counterpart |
+| :--- | :--- | :--- |
+| **Framework** | Java 17/21 / Spring Boot 3 | Enterprise-grade dependency injection, robust multi-threading, and rich Spring ecosystem compared to Express.js or Django. |
+| **Security** | Spring Security + JWT | Stateless authentication allows seamless horizontal scaling across server instances without session replication overhead. |
+| **Relational DB** | PostgreSQL & Spring Data JPA | Superior support for complex relational joins, JSONB column indexing, strict ACID consistency compared to MySQL/SQLite. |
+| **Document DB** | MongoDB | Schema-less document flexibility enables fast insertions and dynamic array queries for dynamic social content and chat history. |
+| **In-Memory Caching** | Redis & Redis Pub/Sub | Ultra-fast sub-millisecond in-memory message routing with minimal setup complexity compared to RabbitMQ/Kafka. |
+| **Real-time Protocol** | WebSockets (STOMP) | Full bi-directional client-server messaging allowing clients to send and receive chat packets over a single connection. |
 
 ---
 
@@ -126,6 +127,9 @@ flowchart TD
 
 ```
 SkyPulse/
+├── FRONTEND.md                                   # Detailed Android Frontend Tech Specs
+├── BACKEND.md                                    # Detailed Spring Boot Backend Tech Specs
+├── README.md                                     # Main Project Overview & Roadmap
 ├── app/
 │   ├── build.gradle.kts
 │   └── src/
@@ -151,8 +155,7 @@ SkyPulse/
 ├── gradle/
 │   └── libs.versions.toml                        # Version Catalog Dependencies
 ├── build.gradle.kts
-├── settings.gradle.kts
-└── README.md
+└── settings.gradle.kts
 ```
 
 ---
@@ -161,7 +164,7 @@ SkyPulse/
 
 ### **Prerequisites**
 * **Android Studio:** Android Studio Ladybug (2024.2.1) or newer recommended.
-* **JDK:** Java 11 or higher (Java 17 recommended).
+* **JDK:** Java 11 or higher (Java 17/21 recommended).
 * **Android SDK:** Target SDK `37`, Minimum SDK `24` (Android 7.0+).
 
 ### **Installation & Setup**
@@ -182,33 +185,6 @@ SkyPulse/
    * Open the project in Android Studio.
    * Allow Gradle to sync dependencies.
    * Select an Android Emulator or physical device and press **Run** (`Shift + F10`).
-
----
-
-## 🌐 Backend & API Endpoint Reference
-
-The Android client connects to the Spring Boot REST services via `SkyPulseApi`:
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :---: |
-| `POST` | `/api/v1/auth/login` | Authenticate user & return JWT token | ❌ |
-| `POST` | `/api/v1/auth/register` | Register a new user account | ❌ |
-| `GET` | `/api/v1/feed` | Fetch community feed posts | ❌ |
-| `GET` | `/api/v1/shop/products` | Fetch space products catalog | ❌ |
-| `POST` | `/api/v1/shop/checkout` | Process shopping cart checkout | ✅ |
-| `GET` | `/api/v1/shop/orders/{username}` | Fetch user order history | ✅ |
-| `GET` | `/api/v1/rooms/{roomId}/messages` | Retrieve persistent chat room messages | ✅ |
-
----
-
-## 🤝 Contributing
-
-Contributions are always welcome!
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ---
 
