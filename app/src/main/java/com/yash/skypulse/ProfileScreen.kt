@@ -121,8 +121,15 @@ fun SkyPulseProfileScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
+    var showBadgeVault by remember { mutableStateOf(false) }
 
-    Scaffold(
+    if (showBadgeVault) {
+        BadgeIntelVaultScreen(
+            onBackClick = { showBadgeVault = false },
+            commanderName = if (userProfile.spaceRank.contains("Vance", ignoreCase = true)) userProfile.spaceRank else "Commander Vanguard"
+        )
+    } else {
+        Scaffold(
         topBar = {
             OnyxTopHeader(
                 title = "Slate Onyx Variant",
@@ -231,29 +238,30 @@ fun SkyPulseProfileScreen(
                         ActiveEquipmentPanel()
                     }
                     2 -> { // BADGES TAB
-                        UnlockedBadgesGrid()
+                        UnlockedBadgesGrid(onViewAllClick = { showBadgeVault = true })
                     }
                 }
             }
         }
-    }
 
-    if (showEditProfileDialog) {
-        EditProfileDialog(
-            currentProfile = userProfile,
-            onDismiss = { showEditProfileDialog = false },
-            onSave = { updated ->
-                userProfile = updated
-                showEditProfileDialog = false
+            if (showEditProfileDialog) {
+                EditProfileDialog(
+                    currentProfile = userProfile,
+                    onDismiss = { showEditProfileDialog = false },
+                    onSave = { updated ->
+                        userProfile = updated
+                        showEditProfileDialog = false
+                    }
+                )
             }
-        )
-    }
 
-    if (showPasswordDialog) {
-        ChangePasswordDialog(
-            username = userProfile.username,
-            onDismiss = { showPasswordDialog = false }
-        )
+            if (showPasswordDialog) {
+                ChangePasswordDialog(
+                    username = userProfile.username,
+                    onDismiss = { showPasswordDialog = false }
+                )
+            }
+        }
     }
 }
 
@@ -815,7 +823,7 @@ fun ActiveEquipmentPanel() {
 }
 
 @Composable
-fun UnlockedBadgesGrid() {
+fun UnlockedBadgesGrid(onViewAllClick: () -> Unit = {}) {
     val badges = listOf(
         BadgeItem(
             title = "Solar Flare",
@@ -867,7 +875,7 @@ fun UnlockedBadgesGrid() {
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable { }
+            modifier = Modifier.clickable { onViewAllClick() }
         ) {
             Text(
                 text = "See all 24 unlocked badges",
