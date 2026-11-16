@@ -1,104 +1,135 @@
 package com.yash.skypulse
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Filter
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+
+// Slate Onyx Theme Palette
+private val SlateOnyxBackground = Color(0xFF080C14)
+private val SurfaceLowest = Color(0xFF0C121D)
+private val SurfaceLow = Color(0xFF151C26)
+private val SurfaceContainerColor = Color(0xFF19202A)
+private val SurfaceHigh = Color(0xFF232A34)
+private val PrimaryCyan = Color(0xFF00F0FF)
+private val OnPrimaryCyan = Color(0xFF00363A)
+private val SecondaryCyan = Color(0xFF79D1FB)
+private val TextWhite = Color(0xFFFFFFFF)
+private val TextPrimary = Color(0xFFDEE2F1)
+private val TextMuted = Color(0xFF8B95A5)
+private val TextDim = Color(0xFF43474E)
+private val RoseRed = Color(0xFFF43F5E)
+
+data class AvatarSticker(val name: String, val url: String)
+
+data class EquipmentItem(
+    val name: String,
+    val category: String,
+    val specs: String,
+    val icon: ImageVector
+)
+
+data class BadgeItem(
+    val title: String,
+    val description: String,
+    val tierInfo: String,
+    val icon: ImageVector
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SkyPulseProfileScreen(
     authResponse: AuthResponse? = null,
+    feedViewModel: HomeFeedViewModel = viewModel(),
     onLogout: () -> Unit = {}
 ) {
-    val userProfile = remember(authResponse) {
-        if (authResponse != null) {
+    var userProfile by remember(authResponse) {
+        mutableStateOf(
             UserProfile(
-                id = authResponse.userId,
-                username = authResponse.username,
-                email = authResponse.email,
+                id = authResponse?.userId ?: "YSH-9805",
+                username = authResponse?.username ?: "yash",
+                email = authResponse?.email ?: "yash@gmail.com",
                 dateOfBirth = "1998-05-12",
-                bio = "Commander of SkyPulse Station",
-                profilePictureUrl = "",
-                spaceRank = "Commander 👨‍🚀",
+                bio = "Deep Space Observer & Astrophysicist. Mapping faint transients across high-declination stellar fields.",
+                profilePictureUrl = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=400",
+                spaceRank = "Commander Vance Thorne",
                 joinedDate = "Oct 2026"
             )
-        } else {
-            UserProfile(
-                id = "USR-1001",
-                username = "Explorer",
-                email = "explorer@skypulse.app",
-                dateOfBirth = "2000-01-01",
-                bio = "Stargazer & Software Engineer.",
-                profilePictureUrl = "",
-                spaceRank = "Cadet 🚀",
-                joinedDate = "Oct 2026"
-            )
-        }
+        )
     }
 
-    val realOrders = remember { mutableStateListOf<OrderResponse>() }
-
-    // Fetch real PostgreSQL orders whenever Profile Screen opens
-    LaunchedEffect(userProfile.username) {
-        try {
-            val response = BackendRetrofitInstance.api.getUserOrders(userProfile.username)
-            if (response.isSuccessful && response.body() != null) {
-                realOrders.clear()
-                realOrders.addAll(response.body()!!)
-            }
-        } catch (e: Exception) {
-            println("Failed to fetch user orders: ${e.message}")
-        }
+    val allFeedItems by feedViewModel.feedItems.collectAsState()
+    val myUserPosts = remember(allFeedItems, userProfile.username) {
+        allFeedItems.filter { it.author.equals(userProfile.username, ignoreCase = true) || it.author.contains("Vance", ignoreCase = true) }
     }
 
-    val userPosts = remember { mutableStateListOf<String>() }
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Posts", "Orders", "Badges")
-
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Posts, 1: Equipment, 2: Badges
+    var showMenu by remember { mutableStateOf(false) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
     var showPasswordDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Profile", color = Color.White) },
-                navigationIcon = {
-                    IconButton(onClick = { /* Back */ }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* Settings */ }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Settings", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D1B2A))
+            OnyxTopHeader(
+                title = "Slate Onyx Variant",
+                onMenuClick = { showMenu = true }
             )
         },
-        containerColor = Color(0xFF0D1B2A)
+        containerColor = SlateOnyxBackground
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -106,104 +137,116 @@ fun SkyPulseProfileScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // 1. Profile Header (Space Themed)
-            ProfileHeader(userProfile)
-
-            // 2. Action Buttons (Edit Profile, Change Password, & Logout)
-            Row(
+            // Dropdown Menu
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .wrapContentSize(Alignment.TopEnd)
+                    .padding(end = 16.dp)
             ) {
-                Button(
-                    onClick = { showPasswordDialog = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp)
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    modifier = Modifier.background(SurfaceContainerColor).border(1.dp, SurfaceHigh)
                 ) {
-                    Text("Password 🔑", color = Color.White, fontSize = 12.sp)
-                }
-
-                Button(
-                    onClick = onLogout,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Text("Log Out", color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            // 3. Scrollable Tabs
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = Color.Transparent,
-                contentColor = Color.White,
-                edgePadding = 16.dp,
-                divider = {},
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = Color.White
-                    )
-                }
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
+                    DropdownMenuItem(
                         text = {
-                            Text(
-                                text = title,
-                                fontSize = 14.sp,
-                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Edit Profile & Avatar", color = TextPrimary, fontSize = 13.sp)
+                            }
+                        },
+                        onClick = {
+                            showMenu = false
+                            showEditProfileDialog = true
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Lock, contentDescription = null, tint = SecondaryCyan, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Change Password", color = TextPrimary, fontSize = 13.sp)
+                            }
+                        },
+                        onClick = {
+                            showMenu = false
+                            showPasswordDialog = true
+                        }
+                    )
+                    HorizontalDivider(color = SurfaceHigh)
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = RoseRed, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Log Out", color = RoseRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        onClick = {
+                            showMenu = false
+                            onLogout()
                         }
                     )
                 }
             }
 
-            // 4. Content Area based on Tab
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // 1. Slate Onyx Hero Section (Moonlit Ridge Background & Stats)
+            SlateOnyxHeroHeader(
+                user = userProfile,
+                postsCount = if (myUserPosts.isNotEmpty()) myUserPosts.size else 24,
+                onEditClick = { showEditProfileDialog = true }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. Telemetry Metrics Section (2x2 HUD Grid)
+            SlateHUDMetricsSection(
+                postsCount = if (myUserPosts.isNotEmpty()) myUserPosts.size else 24
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. Segmented Navigation Tabs
+            OnyxSegmentedTabs(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 4. Tab Content Area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 110.dp)
+            ) {
                 when (selectedTab) {
-                    0 -> { // POSTS TAB
-                        if (userPosts.isEmpty()) {
-                            DinosaurEmptyState(onLaunchClick = {
-                                userPosts.addAll(listOf("Orion Nebula", "My Telescope Setup", "Mars Rover Update"))
-                            })
-                        } else {
-                            UserContentGrid(userPosts)
-                        }
+                    0 -> { // MY POSTS TAB
+                        ObservationLogFeed(posts = myUserPosts)
                     }
-                    1 -> { // ORDERS TAB
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            if (realOrders.isEmpty()) {
-                                Text(
-                                    text = "No orders launched yet. Visit the Cosmic Shop!",
-                                    color = Color.White.copy(alpha = 0.5f),
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            } else {
-                                realOrders.forEach { order ->
-                                    OrderItemRow(order)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                            }
-                        }
+                    1 -> { // EQUIPMENT TAB
+                        ActiveEquipmentPanel()
                     }
                     2 -> { // BADGES TAB
-                        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(64.dp))
-                            Text("Pioneer Badge Unlocked", color = Color.White, modifier = Modifier.padding(top = 8.dp))
-                        }
+                        UnlockedBadgesGrid()
                     }
                 }
             }
         }
+    }
+
+    if (showEditProfileDialog) {
+        EditProfileDialog(
+            currentProfile = userProfile,
+            onDismiss = { showEditProfileDialog = false },
+            onSave = { updated ->
+                userProfile = updated
+                showEditProfileDialog = false
+            }
+        )
     }
 
     if (showPasswordDialog) {
@@ -215,139 +258,744 @@ fun SkyPulseProfileScreen(
 }
 
 @Composable
-fun ProfileHeader(user: UserProfile) {
-    Column(
+fun OnyxTopHeader(title: String, onMenuClick: () -> Unit) {
+    Surface(
+        color = SlateOnyxBackground,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .height(52.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Profile Image
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF1B2A47)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("🚀", fontSize = 36.sp)
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = TextWhite,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = user.username,
-                    color = Color.White,
-                    fontSize = 24.sp,
+                    text = title,
+                    color = TextWhite,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = user.spaceRank,
-                    color = Color(0xFF4A90E2), // Space blue
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
+            }
+
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Tune, contentDescription = "Menu", tint = TextMuted)
+            }
+        }
+    }
+}
+
+@Composable
+fun SlateOnyxHeroHeader(
+    user: UserProfile,
+    postsCount: Int,
+    onEditClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Moonlit Ridge Hero Image Frame
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+        ) {
+            AsyncImage(
+                model = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800",
+                contentDescription = "Moonlit Landscape",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            // Dark Gradient Scrim
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                SlateOnyxBackground.copy(alpha = 0.6f),
+                                SlateOnyxBackground
+                            )
+                        )
+                    )
+            )
+
+            // Centered Circular Avatar
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .align(Alignment.BottomCenter)
+                    .offset(y = 20.dp)
+                    .clip(CircleShape)
+                    .border(2.dp, PrimaryCyan, CircleShape)
+                    .background(SurfaceLowest),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = user.profilePictureUrl,
+                    contentDescription = user.username,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                    Icon(Icons.Default.Email, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(12.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = user.email, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // Commander Title & Subtitle
+        Text(
+            text = if (user.spaceRank.contains("Vance", ignoreCase = true)) user.spaceRank else "Commander Vance Thorne",
+            color = TextWhite,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            text = "Sector Alpha • Clearance Level 4",
+            color = TextMuted,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Stat Counter Row (Posts, Tier 2 Rank, Gear)
+        Row(
+            modifier = Modifier.fillMaxWidth(0.85f),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("$postsCount", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Posts", color = TextMuted, fontSize = 11.sp)
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(28.dp)
+                    .background(SurfaceHigh)
+            )
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Surface(
+                    color = PrimaryCyan.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("4", color = PrimaryCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
                 }
+                Text("Tier 2", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Rank", color = TextMuted, fontSize = 11.sp)
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(28.dp)
+                    .background(SurfaceHigh)
+            )
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("6", color = TextWhite, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Gear", color = TextMuted, fontSize = 11.sp)
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Bio Section
-        Text(
-            text = user.bio,
-            color = Color.White.copy(alpha = 0.9f),
-            fontSize = 14.sp
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-             Text(text = "DOB: ${user.dateOfBirth}", color = Color.Gray, fontSize = 12.sp)
-             Text(text = "Joined: ${user.joinedDate}", color = Color.Gray, fontSize = 12.sp)
+        // Action Button: Edit Profile Pill
+        Surface(
+            color = PrimaryCyan,
+            shape = RoundedCornerShape(50.dp),
+            modifier = Modifier
+                .width(180.dp)
+                .height(40.dp)
+                .clickable { onEditClick() }
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = "Edit Profile",
+                    color = OnPrimaryCyan,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
 
 @Composable
-fun OrderItemRow(order: OrderResponse) {
+fun SlateHUDMetricsSection(postsCount: Int) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
-        shape = RoundedCornerShape(12.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .border(1.dp, SurfaceHigh, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLow)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Row 1: Posts Published & Pioneer Rank
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("POSTS PUBLISHED", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("$postsCount", color = TextWhite, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Box(modifier = Modifier.width(1.dp).height(40.dp).background(SurfaceHigh))
+
+                Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text("PIONEER RANK", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("Tier 2", color = TextWhite, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = SurfaceHigh)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Row 2: Active Equipment & Badges Unlocked
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("ACTIVE EQUIPMENT", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("6", color = TextWhite, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Box(modifier = Modifier.width(1.dp).height(40.dp).background(SurfaceHigh))
+
+                Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text("BADGES UNLOCKED", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("5", color = TextWhite, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun OnyxSegmentedTabs(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OnyxTabButton(
+            title = "My Posts",
+            isSelected = selectedTab == 0,
+            onClick = { onTabSelected(0) },
+            modifier = Modifier.weight(1f)
+        )
+        OnyxTabButton(
+            title = "Equipment",
+            isSelected = selectedTab == 1,
+            onClick = { onTabSelected(1) },
+            modifier = Modifier.weight(1f)
+        )
+        OnyxTabButton(
+            title = "Badges",
+            isSelected = selectedTab == 2,
+            onClick = { onTabSelected(2) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun OnyxTabButton(
+    title: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = if (isSelected) PrimaryCyan else SurfaceLow,
+        shape = RoundedCornerShape(50.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) PrimaryCyan else SurfaceHigh),
+        modifier = modifier
+            .height(38.dp)
+            .clickable { onClick() }
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = title,
+                color = if (isSelected) OnPrimaryCyan else SecondaryCyan,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun ObservationLogFeed(
+    posts: List<FeedItem>
+) {
+    val samplePosts = remember(posts) {
+        if (posts.isNotEmpty()) posts else listOf(
+            FeedItem(
+                id = "1",
+                type = FeedType.POST,
+                title = "Veil Nebula Capture",
+                author = "Commander Vance Thorne",
+                authorRole = "Sector Alpha Lead",
+                timestamp = "2h",
+                content = "Completed a three-hour narrowband capture of the Veil Nebula using the Celestron EdgeHD 1100 and ZWO ASI6200MM Pro setup. Seeing conditions were exceptional at 1.2 arcseconds.",
+                imageUrl = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800",
+                likesCount = 42,
+                commentsCount = 8
+            ),
+            FeedItem(
+                id = "2",
+                type = FeedType.POST,
+                title = "EQ6-R Pro Calibration",
+                author = "Commander Vance Thorne",
+                authorRole = "Sector Alpha Lead",
+                timestamp = "1d",
+                content = "Calibrated the EQ6-R Pro tracking mount ahead of tonight's transit observations. Guiding error dropped to a steady 0.35 RMS.",
+                imageUrl = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=800",
+                likesCount = 29,
+                commentsCount = 5
+            )
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        samplePosts.forEach { post ->
+            OnyxPostCard(post)
+        }
+    }
+}
+
+@Composable
+fun OnyxPostCard(post: FeedItem) {
+    var isLiked by remember { mutableStateOf(false) }
+    var likesCount by remember { mutableIntStateOf(post.likesCount) }
+    var isBookmarked by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, SurfaceHigh, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLow)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Author Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(SurfaceHigh),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(post.author, color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("${post.authorRole} • ${post.timestamp}", color = TextMuted, fontSize = 11.sp)
+                    }
+                }
+
+                Surface(
+                    color = SurfaceHigh,
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = if (post.id == "2") "EQUIPMENT" else "TELEMETRY",
+                        color = SecondaryCyan,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            // Hero Photo Frame
+            if (post.imageUrl != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceLowest)
+                ) {
+                    AsyncImage(
+                        model = post.imageUrl,
+                        contentDescription = post.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Engagement Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable {
+                            isLiked = !isLiked
+                            if (isLiked) likesCount++ else likesCount--
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "Like",
+                            tint = if (isLiked) RoseRed else TextWhite,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("$likesCount", color = TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = "Comment",
+                            tint = TextWhite,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("${post.commentsCount}", color = TextWhite, fontSize = 12.sp)
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Icon(
+                        imageVector = Icons.Default.Navigation,
+                        contentDescription = "Share",
+                        tint = TextWhite,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = { isBookmarked = !isBookmarked },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = "Bookmark",
+                        tint = if (isBookmarked) PrimaryCyan else TextWhite,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Content Text
+            Text(
+                text = post.content,
+                color = TextPrimary,
+                fontSize = 12.sp,
+                lineHeight = 17.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun ActiveEquipmentPanel() {
+    val equipmentList = listOf(
+        EquipmentItem(
+            name = "Celestron EdgeHD 1100",
+            category = "Primary Optical Tube Assembly",
+            specs = "Aperture 280mm • Focal Length 2800mm • Calibrated",
+            icon = Icons.Default.Tag
+        ),
+        EquipmentItem(
+            name = "ZWO ASI6200MM Pro",
+            category = "Deep Sky Monochrome Camera",
+            specs = "Full Frame • Back-Illuminated • Active Cooling",
+            icon = Icons.Default.CameraAlt
+        ),
+        EquipmentItem(
+            name = "Sky-Watcher EQ6-R Pro",
+            category = "Computerized Equatorial Mount",
+            specs = "Payload 20kg • Belt Driven • Connected",
+            icon = Icons.Default.Radar
+        ),
+        EquipmentItem(
+            name = "QHYCCD CFW3-L",
+            category = "Motorized Filter Wheel",
+            specs = "7-Position • 50mm Unmounted • Standby",
+            icon = Icons.Default.Filter
+        )
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        equipmentList.forEach { equip ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, SurfaceHigh, RoundedCornerShape(12.dp))
+                    .clickable { },
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceLow)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceContainerColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(equip.icon, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(20.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(equip.name, color = TextWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(equip.category, color = SecondaryCyan, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Text(equip.specs, color = TextMuted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Details",
+                        tint = TextMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UnlockedBadgesGrid() {
+    val badges = listOf(
+        BadgeItem(
+            title = "Solar Flare",
+            description = "M-class telemetry recorded.",
+            tierInfo = "Tier 1 • Nov 12",
+            icon = Icons.Default.WbSunny
+        ),
+        BadgeItem(
+            title = "Pioneer Orbital",
+            description = "100 sessions completed.",
+            tierInfo = "Tier 2 • Nov 08",
+            icon = Icons.Default.Radar
+        ),
+        BadgeItem(
+            title = "Cartographer",
+            description = "NGC 2237 mapped.",
+            tierInfo = "Tier 3 • Oct 29",
+            icon = Icons.Default.Shield
+        ),
+        BadgeItem(
+            title = "Telemetry Relay",
+            description = "99.9% uplink maintained.",
+            tierInfo = "Tier 1 • Oct 15",
+            icon = Icons.Default.Sensors
+        )
+    )
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color(0xFF4A90E2))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("${order.items.size} Space Item(s)", color = Color.White, fontWeight = FontWeight.Bold)
-                Text("Order ID: ${order.id.take(8)}...", color = Color.Gray, fontSize = 12.sp)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("$${String.format(java.util.Locale.US, "%.2f", order.totalAmount)}", color = Color(0xFF4A90E2), fontWeight = FontWeight.Bold)
-                Text(order.status, color = if(order.status == "PAID") Color.Green else Color.Yellow, fontSize = 12.sp)
-            }
+            OnyxBadgeCard(badge = badges[0], modifier = Modifier.weight(1f))
+            OnyxBadgeCard(badge = badges[1], modifier = Modifier.weight(1f))
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OnyxBadgeCard(badge = badges[2], modifier = Modifier.weight(1f))
+            OnyxBadgeCard(badge = badges[3], modifier = Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable { }
+        ) {
+            Text(
+                text = "See all 24 unlocked badges",
+                color = PrimaryCyan,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(14.dp))
         }
     }
 }
 
 @Composable
-fun DinosaurEmptyState(onLaunchClick: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        contentAlignment = Alignment.Center
+fun OnyxBadgeCard(badge: BadgeItem, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.border(1.dp, SurfaceHigh, RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLow)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "🔭", fontSize = 80.sp)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "No transmissions yet...",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "Share your first astrophotography or space thought.",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 14.sp,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onLaunchClick, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A90E2))) {
-                Text("Launch Your First Post")
-            }
-        }
-    }
-}
-
-@Composable
-fun UserContentGrid(posts: List<String>) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier.fillMaxSize().heightIn(min = 300.dp), // Need a min height inside Scrollable column
-        contentPadding = PaddingValues(1.dp),
-        horizontalArrangement = Arrangement.spacedBy(1.dp),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
-    ) {
-        items(posts.size) { index ->
+        Column(modifier = Modifier.padding(12.dp)) {
             Box(
                 modifier = Modifier
-                    .aspectRatio(1f)
-                    .background(Color.White.copy(alpha = 0.1f)),
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(SurfaceContainerColor),
                 contentAlignment = Alignment.Center
             ) {
-                 Text(text = "🌌", fontSize = 32.sp)
+                Icon(badge.icon, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(20.dp))
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(badge.title, color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(badge.description, color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(badge.tierInfo, color = SecondaryCyan, fontSize = 10.sp, fontWeight = FontWeight.Medium)
         }
     }
+}
+
+@Composable
+fun EditProfileDialog(
+    currentProfile: UserProfile,
+    onDismiss: () -> Unit,
+    onSave: (UserProfile) -> Unit
+) {
+    var newBio by remember { mutableStateOf(currentProfile.bio) }
+    var newRank by remember { mutableStateOf(currentProfile.spaceRank) }
+    var selectedAvatarUrl by remember { mutableStateOf(currentProfile.profilePictureUrl) }
+
+    val presetStickerAvatars = listOf(
+        AvatarSticker("Deep Space", "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=400"),
+        AvatarSticker("Earth Orbit", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=400"),
+        AvatarSticker("Satellite", "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=400"),
+        AvatarSticker("Aurora", "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=400")
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceLow,
+        title = { Text("Edit Profile & Avatar", color = TextWhite, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text("Select Space Avatar Sticker:", color = TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(presetStickerAvatars) { sticker ->
+                        val isSelected = selectedAvatarUrl == sticker.url
+                        Box(
+                            modifier = Modifier
+                                .size(54.dp)
+                                .clip(CircleShape)
+                                .background(SurfaceLowest)
+                                .border(2.dp, if (isSelected) PrimaryCyan else SurfaceHigh, CircleShape)
+                                .clickable { selectedAvatarUrl = sticker.url },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = sticker.url,
+                                contentDescription = sticker.name,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = newRank,
+                    onValueChange = { newRank = it },
+                    label = { Text("Commander Display Rank", color = TextMuted) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = newBio,
+                    onValueChange = { newBio = it },
+                    label = { Text("Bio", color = TextMuted) },
+                    maxLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(currentProfile.copy(bio = newBio, spaceRank = newRank, profilePictureUrl = selectedAvatarUrl))
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
+            ) {
+                Text("Save Changes", color = OnPrimaryCyan, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }
+        }
+    )
 }
 
 @Composable
@@ -359,29 +1007,29 @@ fun ChangePasswordDialog(username: String, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1B2A47),
-        title = { Text("Change Password", color = Color.White) },
+        containerColor = SurfaceLow,
+        title = { Text("Change Password", color = TextWhite) },
         text = {
             Column {
-                Text("Update credentials for $username", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                Text("Update credentials for $username", color = TextMuted, fontSize = 12.sp)
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = oldPassword,
                     onValueChange = { oldPassword = it },
-                    label = { Text("Current Password", color = Color.White.copy(alpha = 0.7f)) },
+                    label = { Text("Current Password", color = TextMuted) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = newPassword,
                     onValueChange = { newPassword = it },
-                    label = { Text("New Password", color = Color.White.copy(alpha = 0.7f)) },
+                    label = { Text("New Password", color = TextMuted) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
                 )
                 if (statusMessage != null) {
-                    Text(statusMessage!!, color = if (statusMessage!!.contains("success", ignoreCase = true)) Color.Green else Color.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text(statusMessage!!, color = if (statusMessage!!.contains("success", ignoreCase = true)) Color.Green else RoseRed, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
         },
@@ -403,13 +1051,13 @@ fun ChangePasswordDialog(username: String, onDismiss: () -> Unit) {
                         }
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A90E2))
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
             ) {
-                Text("Update")
+                Text("Update Password", color = OnPrimaryCyan, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
+            TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }
         }
     )
 }
