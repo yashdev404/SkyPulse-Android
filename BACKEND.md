@@ -19,7 +19,7 @@ The SkyPulse backend is built using a **polyglot persistence micro-monolith / RE
 
 ## 🛠️ Backend Technology Stack & Justification
 
-| Technology / Component | SkyPulse Use Case | Why Selected Over Counterpart (One-Liner) |
+| Technology / Component | SkyPulse Use Case | Why Selected Over Counterpart  |
 | :--- | :--- | :--- |
 | **Java 17/21 & Spring Boot 3** | Core backend web framework providing REST APIs, dependency injection, and transaction management. | **Over Express.js / Django**: Enterprise-grade dependency injection, robust multi-threading, type safety, and rich Spring ecosystem for high-concurrency workloads. |
 | **Spring Security & Stateless JWT** | Protects REST endpoints and WebSocket handshakes with JSON Web Tokens. | **Over Session Cookies**: Stateless authentication allows seamless horizontal scaling across server instances without session replication overhead. |
