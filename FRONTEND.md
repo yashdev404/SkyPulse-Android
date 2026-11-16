@@ -1,10 +1,10 @@
-# 📱 SkyPulse Android Frontend Documentation
+#  SkyPulse Android Frontend Documentation
 
 This document provides a detailed breakdown of the frontend architecture, technologies, use cases, and design justifications for the **SkyPulse** Android client application.
 
 ---
 
-## 🏗️ Architecture Overview
+##  Architecture Overview
 
 The SkyPulse Android frontend is built following **Modern Android Development (MAD)** standards:
 * **Architecture Pattern**: MVVM (Model-View-ViewModel) + Unidirectional Data Flow (UDF).
@@ -30,7 +30,7 @@ The SkyPulse Android frontend is built following **Modern Android Development (M
 
 ---
 
-## 📱 Core UI Modules & Screens
+##  Core UI Modules & Screens
 
 ### 1. **`HomeScreen` — Weather & Atmospheric Intelligence**
 * **Responsibility**: Real-time meteorological telemetry, city search, sky clarity score calculation (0–100%), moon phase illumination tracking, and ISS pass countdowns.
