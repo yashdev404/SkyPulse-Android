@@ -478,6 +478,8 @@ fun CouponsAndOffersSection(
     onSelectCoupon: (Coupon) -> Unit,
     onRemoveCoupon: () -> Unit
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -508,7 +510,7 @@ fun CouponsAndOffersSection(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(appliedCoupon.icon, fontSize = 18.sp)
+                            Icon(Icons.Default.LocalOffer, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text("CODE: ${appliedCoupon.code}", color = EmeraldGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -566,15 +568,31 @@ fun CouponsAndOffersSection(
                 Text(couponError, color = RoseRed, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Text("AVAILABLE OFFER CODES", color = SecondaryCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            // Collapsible Coupons Section
+            val visibleCoupons = if (isExpanded) availableCoupons else availableCoupons.take(1)
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("AVAILABLE OFFER CODES", color = SecondaryCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                TextButton(onClick = { isExpanded = !isExpanded }) {
+                    Text(
+                        text = if (isExpanded) "Collapse Offers ˆ" else "View All Offers (${availableCoupons.size}) ˇ",
+                        color = SecondaryCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
-            // Available Coupon Cards (Zomato Style)
+            Spacer(modifier = Modifier.height(4.dp))
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                availableCoupons.forEach { coupon ->
+                visibleCoupons.forEach { coupon ->
                     val isApplied = appliedCoupon?.code == coupon.code
                     Surface(
                         color = SurfaceContainerColor,
@@ -582,7 +600,10 @@ fun CouponsAndOffersSection(
                         border = androidx.compose.foundation.BorderStroke(1.dp, if (isApplied) EmeraldGreen else Color.Transparent),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSelectCoupon(coupon) }
+                            .clickable {
+                                onSelectCoupon(coupon)
+                                isExpanded = false
+                            }
                     ) {
                         Row(
                             modifier = Modifier
@@ -595,7 +616,12 @@ fun CouponsAndOffersSection(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text(coupon.icon, fontSize = 20.sp)
+                                Icon(
+                                    imageVector = if (coupon.isBankOffer) Icons.Default.CreditCard else Icons.Default.LocalOffer,
+                                    contentDescription = null,
+                                    tint = PrimaryCyan,
+                                    modifier = Modifier.size(18.dp)
+                                )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -628,6 +654,8 @@ fun CouponsAndOffersSection(
 
 @Composable
 fun PaymentMethodsSection(selectedMethod: Int, onSelectMethod: (Int) -> Unit) {
+    var isExpanded by remember { mutableStateOf(false) }
+
     val paymentOptions = listOf(
         Triple("Astro Credit / Debit Card", "5% Instant Extra Card Offer", Icons.Default.CreditCard),
         Triple("Instant Quantum UPI", "Google Pay, PhonePe, Paytm", Icons.Default.QrCodeScanner),
@@ -635,25 +663,46 @@ fun PaymentMethodsSection(selectedMethod: Int, onSelectMethod: (Int) -> Unit) {
         Triple("Cash on Orbital Delivery", "Pay when manifest arrives", Icons.Default.Money)
     )
 
+    val visibleOptions = if (isExpanded) paymentOptions else listOf(paymentOptions[selectedMethod.coerceIn(0, paymentOptions.size - 1)])
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceLow)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Select Payment Gateway", color = OnSurfaceText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Select Payment Gateway", color = OnSurfaceText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = { isExpanded = !isExpanded }) {
+                    Text(
+                        text = if (isExpanded) "Collapse Gateways ˆ" else "More Options (${paymentOptions.size}) ˇ",
+                        color = SecondaryCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                paymentOptions.forEachIndexed { index, (title, sub, icon) ->
-                    val isSelected = selectedMethod == index
+                visibleOptions.forEach { option ->
+                    val actualIndex = paymentOptions.indexOf(option)
+                    val isSelected = selectedMethod == actualIndex
                     Surface(
                         color = SurfaceContainerColor,
                         shape = RoundedCornerShape(10.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) PrimaryCyan else Color.Transparent),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSelectMethod(index) }
+                            .clickable {
+                                onSelectMethod(actualIndex)
+                                isExpanded = false
+                            }
                     ) {
                         Row(
                             modifier = Modifier
@@ -668,11 +717,11 @@ fun PaymentMethodsSection(selectedMethod: Int, onSelectMethod: (Int) -> Unit) {
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
-                            Icon(icon, contentDescription = null, tint = SecondaryCyan, modifier = Modifier.size(18.dp))
+                            Icon(option.third, contentDescription = null, tint = SecondaryCyan, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text(title, color = OnSurfaceText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text(sub, color = OutlineText, fontSize = 10.sp)
+                                Text(option.first, color = OnSurfaceText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(option.second, color = OutlineText, fontSize = 10.sp)
                             }
                         }
                     }

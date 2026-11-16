@@ -97,6 +97,10 @@ fun SkyPulseProfileScreen(
     feedViewModel: HomeFeedViewModel = viewModel(),
     onLogout: () -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
+    val scope = rememberCoroutineScope()
+
     var userProfile by remember(authResponse) {
         mutableStateOf(
             UserProfile(
@@ -110,6 +114,18 @@ fun SkyPulseProfileScreen(
                 joinedDate = "Oct 2026"
             )
         )
+    }
+
+    // Load saved profile details from TokenManager on launch
+    LaunchedEffect(Unit) {
+        val (savedBio, savedRank, savedAvatar) = tokenManager.getSavedProfileDetails()
+        if (savedBio != null || savedRank != null || savedAvatar != null) {
+            userProfile = userProfile.copy(
+                bio = savedBio ?: userProfile.bio,
+                spaceRank = savedRank ?: userProfile.spaceRank,
+                profilePictureUrl = savedAvatar ?: userProfile.profilePictureUrl
+            )
+        }
     }
 
     val allFeedItems by feedViewModel.feedItems.collectAsState()
@@ -250,6 +266,14 @@ fun SkyPulseProfileScreen(
                     onDismiss = { showEditProfileDialog = false },
                     onSave = { updated ->
                         userProfile = updated
+                        tokenManager.saveProfileDetails(updated.bio, updated.spaceRank, updated.profilePictureUrl)
+                        scope.launch {
+                            try {
+                                BackendRetrofitInstance.api.updateProfile(updated)
+                            } catch (e: Exception) {
+                                println("Profile update backend API error: ${e.message}")
+                            }
+                        }
                         showEditProfileDialog = false
                     }
                 )

@@ -4,6 +4,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface SkyPulseApi {
@@ -15,26 +16,30 @@ interface SkyPulseApi {
     @POST("/api/v1/auth/register")
     suspend fun register(@Body request: RegisterRequest): Response<AuthResponse>
 
-    @retrofit2.http.PUT("/api/v1/auth/password")
+    @PUT("/api/v1/auth/password")
     suspend fun changePassword(@Body request: ChangePasswordRequest): Response<String>
 
-    // Calls the Spring Boot FeedController
+    @PUT("/api/v1/user/profile")
+    suspend fun updateProfile(@Body profile: UserProfile): Response<UserProfile>
+
+    // Feed Endpoints
     @GET("/api/v1/feed")
     suspend fun getHomeFeed(): Response<List<FeedItem>>
+
+    @POST("/api/v1/feed/posts")
+    suspend fun createFeedPost(@Body post: FeedItem): Response<FeedItem>
     
-    // Calls the Spring Boot ShopController (Fetch Products)
+    // Shop Endpoints
     @GET("/api/v1/shop/products")
     suspend fun getProducts(): Response<List<Product>>
 
-    // Calls the Spring Boot ShopController (Checkout)
     @POST("/api/v1/shop/checkout")
     suspend fun checkout(@Body request: CheckoutRequest): Response<Any>
 
-    // Calls the Spring Boot ShopController (Fetch User Orders from PostgreSQL)
     @GET("/api/v1/shop/orders/{username}")
     suspend fun getUserOrders(@Path("username") username: String): Response<List<OrderResponse>>
 
-    // Calls the Spring Boot ChatController (Fetch Persistent Messages from MongoDB)
+    // Comms Channels Endpoints
     @GET("/api/v1/rooms/{roomId}/messages")
     suspend fun getRoomHistory(@Path("roomId") roomId: String): Response<List<ChatMessage>>
 }

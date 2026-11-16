@@ -17,9 +17,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -131,6 +135,13 @@ class RoomsViewModel : ViewModel() {
         _messages.value = emptyList()
     }
 
+    fun deleteRoom(roomId: String) {
+        if (_activeRoom.value?.id == roomId) {
+            leaveRoom()
+        }
+        _rooms.value = _rooms.value.filterNot { it.id == roomId }
+    }
+
     fun sendMessage(text: String) {
         val room = _activeRoom.value ?: return
         if (text.isBlank()) return
@@ -174,6 +185,7 @@ fun RoomsScreen(viewModel: RoomsViewModel = viewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     var showPasskeyDialog by remember { mutableStateOf<ChatRoom?>(null) }
     var showCreateChannelDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf<ChatRoom?>(null) }
 
     val filteredRooms = remember(rooms, searchQuery) {
         if (searchQuery.isBlank()) rooms
@@ -220,6 +232,9 @@ fun RoomsScreen(viewModel: RoomsViewModel = viewModel()) {
                                 } else {
                                     viewModel.joinRoom(room)
                                 }
+                            },
+                            onDeleteClick = {
+                                showDeleteConfirmDialog = room
                             }
                         )
                     }
@@ -262,7 +277,10 @@ fun RoomsScreen(viewModel: RoomsViewModel = viewModel()) {
                 room = activeRoom!!,
                 messages = messages,
                 onBack = { viewModel.leaveRoom() },
-                onSendMessage = { viewModel.sendMessage(it) }
+                onSendMessage = { viewModel.sendMessage(it) },
+                onDeleteRoom = {
+                    showDeleteConfirmDialog = activeRoom
+                }
             )
         }
 
@@ -283,6 +301,17 @@ fun RoomsScreen(viewModel: RoomsViewModel = viewModel()) {
                 onCreate = { name, desc, isPrivate ->
                     viewModel.createRoom(name, desc, isPrivate)
                     showCreateChannelDialog = false
+                }
+            )
+        }
+
+        if (showDeleteConfirmDialog != null) {
+            DeleteChannelDialog(
+                roomName = showDeleteConfirmDialog!!.name,
+                onDismiss = { showDeleteConfirmDialog = null },
+                onDelete = {
+                    viewModel.deleteRoom(showDeleteConfirmDialog!!.id)
+                    showDeleteConfirmDialog = null
                 }
             )
         }
@@ -476,10 +505,15 @@ fun CommsHeaderDeck(
 }
 
 @Composable
-fun RoomCard(room: ChatRoom, onClick: () -> Unit) {
+fun RoomCard(
+    room: ChatRoom,
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit
+) {
     val isAmberTheme = room.isPrivate
     val activeBorderColor = if (isAmberTheme) AmberGoldBorder.copy(alpha = 0.4f) else BorderCyan
     val accentColor = if (isAmberTheme) AmberGold else CosmicCyan
+    var showMenu by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -490,7 +524,6 @@ fun RoomCard(room: ChatRoom, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = CardBgStart)
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            // Left Status Line Indicator
             Box(
                 modifier = Modifier
                     .width(4.dp)
@@ -505,16 +538,14 @@ fun RoomCard(room: ChatRoom, onClick: () -> Unit) {
 
             Row(
                 modifier = Modifier
-                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+                    .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar Sphere
                 RoomAvatarIcon(avatarType = room.avatarType, emojiIcon = room.emojiIcon)
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Title & Description
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
@@ -564,7 +595,7 @@ fun RoomCard(room: ChatRoom, onClick: () -> Unit) {
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Presence Badge Pill
                 Surface(
@@ -573,7 +604,7 @@ fun RoomCard(room: ChatRoom, onClick: () -> Unit) {
                     border = androidx.compose.foundation.BorderStroke(1.dp, activeBorderColor)
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -582,12 +613,49 @@ fun RoomCard(room: ChatRoom, onClick: () -> Unit) {
                                 .clip(CircleShape)
                                 .background(accentColor)
                         )
-                        Spacer(modifier = Modifier.width(5.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "[ ${room.activeUsers} ONLINE ]",
+                            text = "${room.activeUsers}",
                             color = if (isAmberTheme) AmberGold else CosmicStarlight,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Options Context Menu Button
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = MutedText,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .background(CardBgStart)
+                            .border(1.dp, BorderCyan)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFF43F5E), modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Delete / Leave Channel", color = Color(0xFFF43F5E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            onClick = {
+                                showMenu = false
+                                onDeleteClick()
+                            }
                         )
                     }
                 }
@@ -647,7 +715,7 @@ fun RoomAvatarIcon(avatarType: String, emojiIcon: String) {
                         .border(1.dp, AmberGold, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🛰️", fontSize = 14.sp)
+                    Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = AmberGold, modifier = Modifier.size(14.dp))
                 }
             }
             "alien" -> {
@@ -659,7 +727,7 @@ fun RoomAvatarIcon(avatarType: String, emojiIcon: String) {
                         .border(1.dp, MutedText, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("👽", fontSize = 15.sp)
+                    Icon(Icons.Default.Security, contentDescription = null, tint = AmberGold, modifier = Modifier.size(14.dp))
                 }
             }
             "meteorite" -> {
@@ -674,10 +742,10 @@ fun RoomAvatarIcon(avatarType: String, emojiIcon: String) {
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("☄️", fontSize = 14.sp)
+                    Icon(Icons.Default.Star, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                 }
             }
-            else -> { // "orbit"
+            else -> {
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -686,7 +754,7 @@ fun RoomAvatarIcon(avatarType: String, emojiIcon: String) {
                         .border(1.dp, CosmicCyan, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(emojiIcon, fontSize = 15.sp)
+                    Icon(Icons.Default.Public, contentDescription = null, tint = CosmicCyan, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -698,9 +766,11 @@ fun ChatRoomView(
     room: ChatRoom,
     messages: List<ChatMessage>,
     onBack: () -> Unit,
-    onSendMessage: (String) -> Unit
+    onSendMessage: (String) -> Unit,
+    onDeleteRoom: () -> Unit
 ) {
     var messageText by remember { mutableStateOf("") }
+    var showMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
@@ -714,7 +784,6 @@ fun ChatRoomView(
             .fillMaxSize()
             .background(DarkObsidian)
     ) {
-        // Chat Header Deck
         Surface(
             color = CardBgStart,
             modifier = Modifier
@@ -724,17 +793,20 @@ fun ChatRoomView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 16.dp, top = 40.dp, bottom = 12.dp),
+                    .padding(start = 8.dp, end = 12.dp, top = 40.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = CosmicIce)
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
                     RoomAvatarIcon(avatarType = room.avatarType, emojiIcon = room.emojiIcon)
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
@@ -751,24 +823,44 @@ fun ChatRoomView(
                                 )
                             }
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(room.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                room.name,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                         Text("${room.activeUsers} Crew Members Live", color = CosmicCyan, fontSize = 11.sp)
                     }
                 }
 
-                if (room.isPrivate) {
-                    Surface(
-                        color = AmberGold.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(50.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = CosmicIce)
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier
+                                .background(CardBgStart)
+                                .border(1.dp, BorderCyan)
                         ) {
-                            Icon(Icons.Default.Security, contentDescription = null, tint = AmberGold, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("ENCRYPTED", color = AmberGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFF43F5E), modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Delete / Exit Channel", color = Color(0xFFF43F5E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onDeleteRoom()
+                                }
+                            )
                         }
                     }
                 }
@@ -1011,6 +1103,44 @@ fun CreateChannelDialog(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("Broadcast Channel", color = DarkObsidian, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MutedText) }
+        }
+    )
+}
+
+@Composable
+fun DeleteChannelDialog(
+    roomName: String,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CardBgStart,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFF43F5E), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Delete / Leave Channel", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Text(
+                text = "Are you sure you want to delete or leave $roomName? This action will disconnect your frequency connection.",
+                color = MutedText,
+                fontSize = 12.sp
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onDelete,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF43F5E)),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Delete Channel", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

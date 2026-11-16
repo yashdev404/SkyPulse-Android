@@ -10,12 +10,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,19 +58,7 @@ class HomeFeedViewModel : ViewModel() {
     private fun fetchFeedFromBackend() {
         viewModelScope.launch {
             try {
-                // 1. Try DummyJSON API first for live posts stream
-                val dummyResponse = DummyJsonInstance.api.getPosts(limit = 20)
-                if (dummyResponse.isSuccessful && dummyResponse.body() != null) {
-                    val livePosts = dummyResponse.body()!!.posts.map { it.toFeedItem() }
-                    _feedItems.value = livePosts
-                    return@launch
-                }
-            } catch (e: Exception) {
-                println("DummyJSON API unreachable for posts, trying custom backend: ${e.message}")
-            }
-
-            try {
-                // 2. Fallback to Spring Boot custom backend
+                // 1. Try Spring Boot custom backend first so persisted posts display!
                 val response = BackendRetrofitInstance.api.getHomeFeed()
                 if (response.isSuccessful && response.body() != null && response.body()!!.isNotEmpty()) {
                     _feedItems.value = response.body()!!
@@ -75,18 +68,65 @@ class HomeFeedViewModel : ViewModel() {
                 println("Backend API error: ${e.message}")
             }
 
-            // 3. Fallback to curated local cosmic feed items if offline
-            _feedItems.value = fallbackFeedItems
+            try {
+                // 2. Try DummyJSON API for extra live posts
+                val dummyResponse = DummyJsonInstance.api.getPosts(limit = 20)
+                if (dummyResponse.isSuccessful && dummyResponse.body() != null) {
+                    val livePosts = dummyResponse.body()!!.posts.map { it.toFeedItem() }
+                    val currentLocalPosts = _feedItems.value.filter { it.timestamp == "Just now" }
+                    _feedItems.value = currentLocalPosts + livePosts
+                    return@launch
+                }
+            } catch (e: Exception) {
+                println("DummyJSON API unreachable for posts: ${e.message}")
+            }
+
+            val currentLocalPosts = _feedItems.value.filter { it.timestamp == "Just now" }
+            _feedItems.value = currentLocalPosts + fallbackFeedItems
         }
     }
 
     private val fallbackFeedItems = listOf(
-        FeedItem("1", FeedType.POST, "Perseid Meteor Shower Peak Observation", "Explorer", "Senior Astrophysicist", "2h ago", "Observed over 60 meteors per hour from Palomar Observatory! Clear sky conditions tonight.", "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800", likesCount = 142, commentsCount = 18),
-        FeedItem("2", FeedType.ARTICLE, "James Webb Space Telescope Captures Cosmic Ring", "AstroPulse Observatory", "Observatory Lead", "5h ago", "New infrared spectrum reveals unprecedented details of stellar dust rings.", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=800", likesCount = 289, commentsCount = 45),
-        FeedItem("3", FeedType.LIVE, "Artemis Lunar Lander Telemetry Live Stream", "Commander Marcus", "Mission Lead", "12h ago", "Live telemetry updates from lunar orbit position test.", "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=800", likesCount = 512, commentsCount = 89)
+        FeedItem(
+            id = "1",
+            type = FeedType.VIDEO,
+            title = "NASA James Webb Captures Ring Nebula Spectrum Video",
+            author = "NASA Goddard Space Flight Center",
+            authorRole = "Astrophysics Division",
+            timestamp = "1h ago",
+            content = "Watch the 4K telemetry animation revealing molecular hydrogen and stellar dust rings inside Messier 57.",
+            imageUrl = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=800",
+            videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+            likesCount = 384,
+            commentsCount = 42
+        ),
+        FeedItem(
+            id = "2",
+            type = FeedType.ARTICLE,
+            title = "ISRO Gaganyaan Mission Orbital Test Verification Complete",
+            author = "ISRO Mission Control",
+            authorRole = "Flight Dynamics Team",
+            timestamp = "3h ago",
+            content = "Crew module deceleration test successfully executed at 420km altitude. Telemetry streams confirm perfect reentry vector.",
+            imageUrl = "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=800",
+            likesCount = 512,
+            commentsCount = 68
+        ),
+        FeedItem(
+            id = "3",
+            type = FeedType.POST,
+            title = "Perseid Meteor Shower Peak Observation Log",
+            author = "Dr. Elena Vance",
+            authorRole = "Senior Astrophysicist",
+            timestamp = "5h ago",
+            content = "Observed over 65 meteors per hour from Palomar Observatory! Exceptional atmospheric transparency tonight.",
+            imageUrl = "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800",
+            likesCount = 240,
+            commentsCount = 29
+        )
     )
 
-    fun addPost(title: String, content: String, imageUrl: String?, authorName: String = "Explorer", authorRole: String = "Commander 👨‍🚀") {
+    fun addPost(title: String, content: String, imageUrl: String?, authorName: String = "Explorer", authorRole: String = "Mission Commander") {
         val newPost = FeedItem(
             id = System.currentTimeMillis().toString(),
             type = FeedType.POST,
@@ -100,7 +140,17 @@ class HomeFeedViewModel : ViewModel() {
             commentsCount = 0,
             likedByMe = true
         )
+        // Instantly add to UI feed
         _feedItems.value = listOf(newPost) + _feedItems.value
+
+        // Post to backend database
+        viewModelScope.launch {
+            try {
+                BackendRetrofitInstance.api.createFeedPost(newPost)
+            } catch (e: Exception) {
+                println("Failed to post feed item to backend: ${e.message}")
+            }
+        }
     }
 
     fun toggleLike(itemId: String) {
@@ -123,6 +173,7 @@ fun HomeFeedScreen(
 ) {
     val feedItems by viewModel.feedItems.collectAsState()
     var showCreatePostDialog by remember { mutableStateOf(false) }
+    var activeVideoUrl by remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = Modifier
@@ -150,7 +201,7 @@ fun HomeFeedScreen(
                         .border(1.dp, SurfaceBorder, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🚀", fontSize = 22.sp)
+                    Icon(Icons.Default.RocketLaunch, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(20.dp))
                 }
             }
 
@@ -164,7 +215,13 @@ fun HomeFeedScreen(
                 }
 
                 items(feedItems) { item ->
-                    FeedCard(item = item, onLikeClick = { viewModel.toggleLike(item.id) })
+                    FeedCard(
+                        item = item,
+                        onLikeClick = { viewModel.toggleLike(item.id) },
+                        onPlayVideo = { videoUrl ->
+                            activeVideoUrl = videoUrl
+                        }
+                    )
                 }
             }
         }
@@ -195,7 +252,60 @@ fun HomeFeedScreen(
                 }
             )
         }
+
+        if (activeVideoUrl != null) {
+            VideoPlayerModalDialog(
+                videoUrl = activeVideoUrl!!,
+                onDismiss = { activeVideoUrl = null }
+            )
+        }
     }
+}
+
+@Composable
+fun VideoPlayerModalDialog(
+    videoUrl: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = ElevatedCardSurface,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Videocam, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Space Video Stream", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                }
+            }
+        },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Streaming NASA Video Telemetry...", color = NeonCyan, fontSize = 13.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = CelestialPurple)) {
+                Text("Close Stream")
+            }
+        }
+    )
 }
 
 @Composable
@@ -208,16 +318,16 @@ fun CreatePostDialog(
     var selectedImageUrl by remember { mutableStateOf<String?>(null) }
 
     val presetImages = listOf(
-        Triple("Earth", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=800", "🌍"),
-        Triple("Nebula", "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800", "🌌"),
-        Triple("Satellite", "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=800", "🛰️"),
-        Triple("Aurora", "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800", "✨")
+        Triple("Earth", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=800", Icons.Default.Public),
+        Triple("Nebula", "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800", Icons.Default.RocketLaunch),
+        Triple("Satellite", "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=800", Icons.Default.Videocam),
+        Triple("Aurora", "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800", Icons.AutoMirrored.Filled.Article)
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = ElevatedCardSurface,
-        title = { Text("Create Post 📝", color = Color.White, fontWeight = FontWeight.Bold) },
+        title = { Text("Create Post", color = Color.White, fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 OutlinedTextField(
@@ -245,7 +355,7 @@ fun CreatePostDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(presetImages) { (name, url, emoji) ->
+                    items(presetImages) { (name, url, icon) ->
                         val isSelected = selectedImageUrl == url
                         Surface(
                             color = if (isSelected) CelestialPurple else DeepSpaceBackground,
@@ -259,8 +369,8 @@ fun CreatePostDialog(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(emoji, fontSize = 14.sp)
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(icon, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(name, color = Color.White, fontSize = 12.sp)
                             }
                         }
@@ -316,7 +426,14 @@ fun FeaturedStory() {
                     color = RoseRed,
                     shape = RoundedCornerShape(4.dp)
                 ) {
-                    Text("LIVE FEED 🛰️", color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color.White))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("LIVE FEED", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Artemis Lunar Base Camp Setup", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -327,7 +444,11 @@ fun FeaturedStory() {
 }
 
 @Composable
-fun FeedCard(item: FeedItem, onLikeClick: () -> Unit) {
+fun FeedCard(
+    item: FeedItem,
+    onLikeClick: () -> Unit,
+    onPlayVideo: (String) -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -408,11 +529,16 @@ fun FeedCard(item: FeedItem, onLikeClick: () -> Unit) {
 
                     if (item.type == FeedType.VIDEO) {
                         Surface(
-                            modifier = Modifier.align(Alignment.Center).size(48.dp),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(48.dp)
+                                .clickable {
+                                    onPlayVideo(item.videoUrl ?: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4")
+                                },
                             shape = CircleShape,
-                            color = Color.Black.copy(alpha = 0.6f)
+                            color = Color.Black.copy(alpha = 0.7f)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Play Video", tint = Color.White, modifier = Modifier.padding(10.dp))
+                            Icon(Icons.Default.PlayArrow, contentDescription = "Play Video", tint = NeonCyan, modifier = Modifier.padding(10.dp))
                         }
                     }
                 }

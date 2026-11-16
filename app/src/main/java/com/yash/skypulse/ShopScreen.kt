@@ -155,10 +155,10 @@ class ShopViewModel : ViewModel() {
             description = "Premium heavyweight matte black hoodie featuring an iridescent James Webb Cosmic Cliffs nebula graphic.",
             price = 68.00,
             category = "Apparel",
-            imageUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuDgN4VzhtAfWcw9IPXX-4As-Eu7FgYSeuE71SRp4K3qDLOFP8pHYs0FiN-YKAeRmouPnvce4Hm3jBeKUCjk0UXB_Xdvj9DaIrvDRDfKz3b_bBhMNVdZHf0FnfHAylENKn0lseW4kNG6eP186IWc10dNr2_ENA3PVg5dz4ws0q3oxr72Wnv1MKXKqbaf0lWazH1_ZH-TdEIq_p3_6dB7X4CO2Rxtp5TG8cOrKnav7ac",
+               imageUrl = "https://lh3.googleusercontent.com/aida-public/AB6AXuDgN4VzhtAfWcw9IPXX-4As-Eu7FgYSeuE71SRp4K3qDLOFP8pHYs0FiN-YKAeRmouPnvce4Hm3jBeKUCjk0UXB_Xdvj9DaIrvDRDfKz3b_bBhMNVdZHf0FnfHAylENKn0lseW4kNG6eP186IWc10dNr2_ENA3PVg5dz4ws0q3oxr72Wnv1MKXKqbaf0lWazH1_ZH-TdEIq_p3_6dB7X4CO2Rxtp5TG8cOrKnav7ac",
             stockQuantity = 20,
             isBestseller = false,
-            rating = 4.8,
+             rating = 4.8,
             reviewCount = 96,
             originalPrice = null,
             badge = "LIMITED",
@@ -228,14 +228,11 @@ class ShopViewModel : ViewModel() {
                     CartItemRequest(productId = it.product.id, quantity = it.quantity)
                 }
                 val request = CheckoutRequest(username = username, items = requestItems)
-                val response = BackendRetrofitInstance.api.checkout(request)
-
-                if (response.isSuccessful) {
-                    _cart.value = emptyList()
-                    fetchProductsFromBackend()
-                }
+                BackendRetrofitInstance.api.checkout(request)
             } catch (e: Exception) {
                 println("Checkout network error: ${e.message}")
+            } finally {
+                _cart.value = emptyList()
             }
         }
     }
@@ -370,7 +367,15 @@ fun ShopScreen(
 
                         // 6. 2x2 Product Grid Cards
                         items(filteredProducts) { product ->
-                            ProductCard(product = product, onAddClick = { viewModel.addToCart(product) })
+                            val cartItem = cart.find { it.product.id == product.id }
+                            val quantity = cartItem?.quantity ?: 0
+                            ProductCard(
+                                product = product,
+                                cartQuantity = quantity,
+                                onQuantityChange = { newQ ->
+                                    viewModel.updateCartQuantity(product, newQ)
+                                }
+                            )
                         }
 
                         item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
@@ -379,6 +384,66 @@ fun ShopScreen(
                                 // 7. Telemetry Certification Strip
                                 TelemetryCertificationStrip()
                             }
+                        }
+                    }
+                }
+            }
+
+            // Sticky/Floating Bottom Checkout Dock
+            if (cart.isNotEmpty()) {
+                Surface(
+                    color = SurfaceContainerColor,
+                    shape = RoundedCornerShape(16.dp),
+                    shadowElevation = 12.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryCyan.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 80.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryCyan),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${cart.sumOf { it.quantity }}",
+                                    color = OnPrimaryCyan,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Total Manifest", color = OutlineText, fontSize = 10.sp)
+                                Text(
+                                    text = String.format(java.util.Locale.US, "$%.2f", viewModel.getCartTotal()),
+                                    color = PrimaryCyan,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { isCheckoutActive = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.height(40.dp)
+                        ) {
+                            Text("Proceed to Checkout", color = OnPrimaryCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = OnPrimaryCyan, modifier = Modifier.size(14.dp))
                         }
                     }
                 }
@@ -932,22 +997,12 @@ fun SectionHeaderAndSort(
 }
 
 @Composable
-fun ProductCard(product: Product, onAddClick: () -> Unit) {
-    var isAdded by remember { mutableStateOf(false) }
+fun ProductCard(
+    product: Product,
+    cartQuantity: Int,
+    onQuantityChange: (Int) -> Unit
+) {
     var isFavorite by remember { mutableStateOf(false) }
-
-    val buttonColor by animateColorAsState(
-        targetValue = if (isAdded) EmeraldGreen else PrimaryCyan,
-        animationSpec = tween(durationMillis = 300),
-        label = "buttonColor"
-    )
-
-    LaunchedEffect(isAdded) {
-        if (isAdded) {
-            kotlinx.coroutines.delay(1800)
-            isAdded = false
-        }
-    }
 
     Card(
         modifier = Modifier
@@ -1113,32 +1168,68 @@ fun ProductCard(product: Product, onAddClick: () -> Unit) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Add to Cart Action Button
-            Button(
-                onClick = {
-                    isAdded = true
-                    onAddClick()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(34.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-            ) {
-                Icon(
-                    imageVector = if (isAdded) Icons.Default.CheckCircle else Icons.Default.AddShoppingCart,
-                    contentDescription = null,
-                    tint = OnPrimaryCyan,
-                    modifier = Modifier.size(15.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = if (isAdded) "Added! ✔" else "Add to Cart",
-                    color = OnPrimaryCyan,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
+            // Add to Cart Button OR In-Card Quantity Stepper
+            if (cartQuantity <= 0) {
+                Button(
+                    onClick = { onQuantityChange(1) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(34.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddShoppingCart,
+                        contentDescription = null,
+                        tint = OnPrimaryCyan,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Add to Cart",
+                        color = OnPrimaryCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            } else {
+                Surface(
+                    color = PrimaryCyan,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(34.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { onQuantityChange(cartQuantity - 1) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Remove, contentDescription = "Decrease", tint = OnPrimaryCyan, modifier = Modifier.size(14.dp))
+                        }
+
+                        Text(
+                            text = "$cartQuantity",
+                            color = OnPrimaryCyan,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+
+                        IconButton(
+                            onClick = { onQuantityChange(cartQuantity + 1) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Increase", tint = OnPrimaryCyan, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
             }
         }
     }

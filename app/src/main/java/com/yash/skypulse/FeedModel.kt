@@ -12,6 +12,7 @@ data class FeedItem(
     val timestamp: String,
     val content: String = "",
     val imageUrl: String? = null,
+    val videoUrl: String? = null,
     val likesCount: Int = 0,
     val commentsCount: Int = 0,
     val likedByMe: Boolean = false
@@ -64,16 +65,18 @@ fun DummyPostDto.toFeedItem(): FeedItem {
     val authorIndex = id % authorNames.size
     val imageIndex = id % cosmicImageUrls.size
     val likes = reactions?.likes ?: ((id * 17) % 250 + 12)
+    val isVideo = (id % 4 == 0)
 
     return FeedItem(
         id = id.toString(),
-        type = if (id % 3 == 0) FeedType.ARTICLE else FeedType.POST,
+        type = if (isVideo) FeedType.VIDEO else if (id % 3 == 0) FeedType.ARTICLE else FeedType.POST,
         title = title,
         author = authorNames[authorIndex],
         authorRole = authorRoles[authorIndex],
         timestamp = "${(id % 12) + 1}h ago",
         content = body,
-        imageUrl = if (id % 2 == 0) cosmicImageUrls[imageIndex] else null,
+        imageUrl = if (id % 2 == 0 || isVideo) cosmicImageUrls[imageIndex] else null,
+        videoUrl = if (isVideo) "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" else null,
         likesCount = likes,
         commentsCount = (likes * 0.2).toInt() + 1,
         likedByMe = false
