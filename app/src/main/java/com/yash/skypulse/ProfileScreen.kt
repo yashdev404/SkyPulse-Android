@@ -1,5 +1,8 @@
 package com.yash.skypulse
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -95,6 +98,7 @@ data class BadgeItem(
 fun SkyPulseProfileScreen(
     authResponse: AuthResponse? = null,
     feedViewModel: HomeFeedViewModel = viewModel(),
+    onBackClick: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -148,7 +152,8 @@ fun SkyPulseProfileScreen(
         Scaffold(
         topBar = {
             OnyxTopHeader(
-                title = "Slate Onyx Variant",
+                title = "Commander Profile",
+                onBackClick = onBackClick,
                 onMenuClick = { showMenu = true }
             )
         },
@@ -261,7 +266,7 @@ fun SkyPulseProfileScreen(
         }
 
             if (showEditProfileDialog) {
-                EditProfileDialog(
+                EditProfileFullScreen(
                     currentProfile = userProfile,
                     onDismiss = { showEditProfileDialog = false },
                     onSave = { updated ->
@@ -290,7 +295,11 @@ fun SkyPulseProfileScreen(
 }
 
 @Composable
-fun OnyxTopHeader(title: String, onMenuClick: () -> Unit) {
+fun OnyxTopHeader(
+    title: String,
+    onMenuClick: () -> Unit,
+    onBackClick: () -> Unit = {}
+) {
     Surface(
         color = SlateOnyxBackground,
         modifier = Modifier
@@ -305,13 +314,15 @@ fun OnyxTopHeader(title: String, onMenuClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = TextWhite,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = TextWhite,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = title,
                     color = TextWhite,
@@ -943,42 +954,120 @@ fun OnyxBadgeCard(badge: BadgeItem, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditProfileDialog(
+fun EditProfileFullScreen(
     currentProfile: UserProfile,
     onDismiss: () -> Unit,
     onSave: (UserProfile) -> Unit
 ) {
+    BackHandler {
+        onDismiss()
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
     var newBio by remember { mutableStateOf(currentProfile.bio) }
     var newRank by remember { mutableStateOf(currentProfile.spaceRank) }
     var selectedAvatarUrl by remember { mutableStateOf(currentProfile.profilePictureUrl) }
+    var customAvatarInput by remember { mutableStateOf("") }
 
     val presetStickerAvatars = listOf(
         AvatarSticker("Deep Space", "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=400"),
         AvatarSticker("Earth Orbit", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=400"),
         AvatarSticker("Satellite", "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=400"),
-        AvatarSticker("Aurora", "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=400")
+        AvatarSticker("Aurora", "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=400"),
+        AvatarSticker("Mars Base", "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?q=80&w=400")
     )
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = SurfaceLow,
-        title = { Text("Edit Profile & Avatar", color = TextWhite, fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text("Select Space Avatar Sticker:", color = TextWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = SlateOnyxBackground
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            // Full Screen Top Bar
+            Surface(
+                color = SurfaceLow,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextWhite)
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Edit Commander Profile", color = TextWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            val finalAvatar = customAvatarInput.ifBlank { selectedAvatarUrl }
+                            onSave(currentProfile.copy(bio = newBio, spaceRank = newRank, profilePictureUrl = finalAvatar))
+                            Toast.makeText(context, "Profile settings saved!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
+                    ) {
+                        Text("Save", color = OnPrimaryCyan, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Avatar Preview Frame
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .size(110.dp)
+                        .clip(CircleShape)
+                        .border(3.dp, PrimaryCyan, CircleShape)
+                        .background(SurfaceLowest),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = customAvatarInput.ifBlank { selectedAvatarUrl },
+                        contentDescription = "Avatar Preview",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Select Space Avatar Preset:", color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(presetStickerAvatars) { sticker ->
-                        val isSelected = selectedAvatarUrl == sticker.url
+                        val isSelected = selectedAvatarUrl == sticker.url && customAvatarInput.isBlank()
                         Box(
                             modifier = Modifier
-                                .size(54.dp)
+                                .size(64.dp)
                                 .clip(CircleShape)
                                 .background(SurfaceLowest)
                                 .border(2.dp, if (isSelected) PrimaryCyan else SurfaceHigh, CircleShape)
-                                .clickable { selectedAvatarUrl = sticker.url },
+                                .clickable {
+                                    selectedAvatarUrl = sticker.url
+                                    customAvatarInput = ""
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             AsyncImage(
@@ -993,41 +1082,47 @@ fun EditProfileDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = customAvatarInput,
+                    onValueChange = { customAvatarInput = it },
+                    label = { Text("Or paste custom avatar Image URL", color = TextMuted) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text("Profile Details", color = PrimaryCyan, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = newRank,
                     onValueChange = { newRank = it },
-                    label = { Text("Commander Display Rank", color = TextMuted) },
+                    label = { Text("Commander Call Sign / Space Rank", color = TextMuted) },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = newBio,
                     onValueChange = { newBio = it },
-                    label = { Text("Bio", color = TextMuted) },
-                    maxLines = 3,
+                    label = { Text("Commander Bio & Mission Directives", color = TextMuted) },
+                    minLines = 4,
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextWhite, unfocusedTextColor = TextWhite)
                 )
+
+                Spacer(modifier = Modifier.height(30.dp))
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(currentProfile.copy(bio = newBio, spaceRank = newRank, profilePictureUrl = selectedAvatarUrl))
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan)
-            ) {
-                Text("Save Changes", color = OnPrimaryCyan, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }
         }
-    )
+    }
 }
 
 @Composable

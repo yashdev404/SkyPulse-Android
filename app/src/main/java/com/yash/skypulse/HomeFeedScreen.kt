@@ -1,5 +1,7 @@
 package com.yash.skypulse
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,10 +9,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
@@ -30,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -172,8 +179,9 @@ fun HomeFeedScreen(
     currentUsername: String = "Explorer"
 ) {
     val feedItems by viewModel.feedItems.collectAsState()
-    var showCreatePostDialog by remember { mutableStateOf(false) }
+    var showCreatePostFullScreen by remember { mutableStateOf(false) }
     var activeVideoUrl by remember { mutableStateOf<String?>(null) }
+    var activeCommentItem by remember { mutableStateOf<FeedItem?>(null) }
 
     Box(
         modifier = Modifier
@@ -218,9 +226,8 @@ fun HomeFeedScreen(
                     FeedCard(
                         item = item,
                         onLikeClick = { viewModel.toggleLike(item.id) },
-                        onPlayVideo = { videoUrl ->
-                            activeVideoUrl = videoUrl
-                        }
+                        onPlayVideo = { videoUrl -> activeVideoUrl = videoUrl },
+                        onCommentClick = { activeCommentItem = item }
                     )
                 }
             }
@@ -228,7 +235,7 @@ fun HomeFeedScreen(
 
         // Floating Action Button (FAB) to Create Post
         FloatingActionButton(
-            onClick = { showCreatePostDialog = true },
+            onClick = { showCreatePostFullScreen = true },
             containerColor = CelestialPurple,
             contentColor = Color.White,
             modifier = Modifier
@@ -238,9 +245,10 @@ fun HomeFeedScreen(
             Icon(Icons.Default.Add, contentDescription = "Create Post")
         }
 
-        if (showCreatePostDialog) {
-            CreatePostDialog(
-                onDismiss = { showCreatePostDialog = false },
+        if (showCreatePostFullScreen) {
+            CreatePostFullScreen(
+                authorName = currentUsername,
+                onDismiss = { showCreatePostFullScreen = false },
                 onPublish = { title, content, imageUrl ->
                     viewModel.addPost(
                         title = title,
@@ -248,8 +256,15 @@ fun HomeFeedScreen(
                         imageUrl = imageUrl,
                         authorName = currentUsername
                     )
-                    showCreatePostDialog = false
+                    showCreatePostFullScreen = false
                 }
+            )
+        }
+
+        if (activeCommentItem != null) {
+            FeedCommentsBottomSheet(
+                item = activeCommentItem!!,
+                onDismiss = { activeCommentItem = null }
             )
         }
 
@@ -296,7 +311,7 @@ fun VideoPlayerModalDialog(
                         .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Streaming NASA Video Telemetry...", color = NeonCyan, fontSize = 13.sp)
+                    Text("Streaming NASA Video Telemetry: $videoUrl", color = NeonCyan, fontSize = 12.sp)
                 }
             }
         },
@@ -308,14 +323,22 @@ fun VideoPlayerModalDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreatePostDialog(
+fun CreatePostFullScreen(
+    authorName: String,
     onDismiss: () -> Unit,
     onPublish: (title: String, content: String, imageUrl: String?) -> Unit
 ) {
+    BackHandler {
+        onDismiss()
+    }
+
+    val context = LocalContext.current
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
-    var selectedImageUrl by remember { mutableStateOf<String?>(null) }
+    var selectedImageUrl by remember { mutableStateOf<String?>("https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?q=80&w=800") }
+    var customImageUrlInput by remember { mutableStateOf("") }
 
     val presetImages = listOf(
         Triple("Earth", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=800", Icons.Default.Public),
@@ -324,76 +347,293 @@ fun CreatePostDialog(
         Triple("Aurora", "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=800", Icons.AutoMirrored.Filled.Article)
     )
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = ElevatedCardSurface,
-        title = { Text("Create Post", color = Color.White, fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = DeepSpaceBackground
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            // Full Screen Header Bar
+            Surface(
+                color = ElevatedCardSurface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Create Cosmic Post", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            if (title.isNotBlank() || content.isNotBlank()) {
+                                val finalImage = customImageUrlInput.ifBlank { selectedImageUrl }
+                                onPublish(title.ifBlank { "Deep Space Update" }, content, finalImage)
+                                Toast.makeText(context, "Post published to Cosmic Feed!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Please write a title or post description", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = CelestialPurple)
+                    ) {
+                        Text("Publish", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Author Header Card
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(CelestialPurple),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(authorName.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text(authorName, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("Mission Commander • Telemetry Specialist", color = NeonCyan, fontSize = 12.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Title Input
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Post Title", color = Color.White.copy(alpha = 0.7f)) },
+                    label = { Text("Post Title (e.g. James Webb Ring Nebula Telemetry)", color = Color.White.copy(alpha = 0.7f)) },
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    label = { Text("Share your stargazing update...", color = Color.White.copy(alpha = 0.7f)) },
-                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Text("Attach Space Photo:", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                // Description Input
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { content = it },
+                    label = { Text("Share your stargazing update, space weather report, or telemetry observation...", color = Color.White.copy(alpha = 0.7f)) },
+                    minLines = 5,
+                    maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Attach Cosmic Image Preset:", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(presetImages) { (name, url, icon) ->
-                        val isSelected = selectedImageUrl == url
+                        val isSelected = selectedImageUrl == url && customImageUrlInput.isBlank()
                         Surface(
-                            color = if (isSelected) CelestialPurple else DeepSpaceBackground,
+                            color = if (isSelected) CelestialPurple else ElevatedCardSurface,
                             shape = RoundedCornerShape(8.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) NeonCyan else SurfaceBorder),
                             modifier = Modifier.clickable {
                                 selectedImageUrl = if (isSelected) null else url
+                                customImageUrlInput = ""
                             }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(icon, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(name, color = Color.White, fontSize = 12.sp)
+                                Text(name, color = Color.White, fontSize = 13.sp)
                             }
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = customImageUrlInput,
+                    onValueChange = { customImageUrlInput = it },
+                    label = { Text("Or paste custom space photo Image URL", color = Color.White.copy(alpha = 0.7f)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Post Live Preview Box
+                Text("Live Feed Card Preview:", color = NeonCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val previewImage = customImageUrlInput.ifBlank { selectedImageUrl }
+                FeedCard(
+                    item = FeedItem(
+                        id = "preview",
+                        type = FeedType.POST,
+                        title = title.ifBlank { "Post Title Preview" },
+                        author = authorName,
+                        authorRole = "Mission Commander",
+                        timestamp = "Just now",
+                        content = content.ifBlank { "Your stargazing observation notes and space telemetry details will appear here." },
+                        imageUrl = previewImage,
+                        likesCount = 1,
+                        commentsCount = 0
+                    ),
+                    onLikeClick = {},
+                    onPlayVideo = {},
+                    onCommentClick = {}
+                )
+
+                Spacer(modifier = Modifier.height(40.dp))
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (title.isNotBlank() || content.isNotBlank()) {
-                        onPublish(title.ifBlank { "Deep Space Update" }, content, selectedImageUrl)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = CelestialPurple)
-            ) {
-                Text("Publish Post")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
         }
-    )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FeedCommentsBottomSheet(
+    item: FeedItem,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var commentText by remember { mutableStateOf("") }
+    var commentsList by remember {
+        mutableStateOf(
+            listOf(
+                Triple("Dr. Elena Vance", "20m ago", "Spectacular telemetry data! The atmospheric transparency is phenomenal."),
+                Triple("Commander Ray", "1h ago", "Confirmed, tracking satellite pass at 420km altitude."),
+                Triple("Astro_Explorer", "2h ago", "Great observation log! Thanks for sharing with mission control.")
+            )
+        )
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = ElevatedCardSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Comments (${commentsList.size}) • ${item.title.take(18)}...",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 280.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(commentsList) { (author, time, text) ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(CelestialPurple),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(author.take(1), color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DeepSpaceBackground)
+                                .padding(10.dp)
+                        ) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text(author, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(time, color = NeonCyan, fontSize = 10.sp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text, color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Write Comment Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = commentText,
+                    onValueChange = { commentText = it },
+                    placeholder = { Text("Write a comment...", color = Color.Gray, fontSize = 13.sp) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = {
+                        if (commentText.isNotBlank()) {
+                            commentsList = commentsList + Triple("Explorer", "Just now", commentText)
+                            commentText = ""
+                            Toast.makeText(context, "Comment posted!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(CelestialPurple)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -447,8 +687,12 @@ fun FeaturedStory() {
 fun FeedCard(
     item: FeedItem,
     onLikeClick: () -> Unit,
-    onPlayVideo: (String) -> Unit
+    onPlayVideo: (String) -> Unit,
+    onCommentClick: () -> Unit = {}
 ) {
+    var showCardMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -475,8 +719,32 @@ fun FeedCard(
                     Text(text = item.author, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(text = "${item.authorRole} • ${item.timestamp}", color = NeonCyan, fontSize = 11.sp)
                 }
-                IconButton(onClick = { /* Menu */ }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White.copy(alpha = 0.5f))
+                Box {
+                    IconButton(onClick = { showCardMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More", tint = Color.White.copy(alpha = 0.5f))
+                    }
+                    DropdownMenu(
+                        expanded = showCardMenu,
+                        onDismissRequest = { showCardMenu = false },
+                        modifier = Modifier
+                            .background(ElevatedCardSurface)
+                            .border(1.dp, SurfaceBorder)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Copy Post Link", color = Color.White) },
+                            onClick = {
+                                showCardMenu = false
+                                Toast.makeText(context, "Post link copied to clipboard", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Report Post", color = RoseRed) },
+                            onClick = {
+                                showCardMenu = false
+                                Toast.makeText(context, "Post reported to Mission Control", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                 }
             }
 
@@ -567,7 +835,7 @@ fun FeedCard(
 
                 // Comment Button
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { /* Open Comments */ }) {
+                    IconButton(onClick = onCommentClick) {
                         Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = "Comment", tint = Color.White)
                     }
                     Text(text = item.commentsCount.toString(), color = Color.White, fontSize = 13.sp)
@@ -576,7 +844,9 @@ fun FeedCard(
                 Spacer(modifier = Modifier.weight(1f))
 
                 // Share Button
-                IconButton(onClick = { /* Share */ }) {
+                IconButton(onClick = {
+                    Toast.makeText(context, "Observation post shared!", Toast.LENGTH_SHORT).show()
+                }) {
                     Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
                 }
             }
