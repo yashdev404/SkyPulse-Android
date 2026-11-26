@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,10 +61,13 @@ private val AmberGold = Color(0xFFFFB300)
 @Composable
 fun CheckoutScreen(
     cartItems: List<CartItem>,
+    currentUsername: String = "YashCommander",
     onBackClick: () -> Unit,
     onQuantityChange: (Product, Int) -> Unit,
     onOrderComplete: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+    var confirmedOrderResponse by remember { mutableStateOf<OrderResponse?>(null) }
     var couponInput by remember { mutableStateOf("") }
     var appliedCoupon by remember { mutableStateOf<Coupon?>(null) }
     var couponError by remember { mutableStateOf<String?>(null) }
@@ -273,22 +277,45 @@ fun CheckoutScreen(
                 }
 
                 Button(
+                    enabled = !isPlacingOrder,
                     onClick = {
-                        isPlacingOrder = true
-                        showOrderConfirmedDialog = true
+                        scope.launch {
+                            isPlacingOrder = true
+                            try {
+                                val itemRequests = cartItems.map { CartItemRequest(it.product.id, it.quantity) }
+                                val checkoutReq = CheckoutRequest(username = currentUsername, items = itemRequests)
+                                val response = BackendRetrofitInstance.api.checkout(checkoutReq)
+                                if (response.isSuccessful && response.body() != null) {
+                                    confirmedOrderResponse = response.body()
+                                }
+                            } catch (e: Exception) {
+                                println("Checkout backend error: ${e.message}")
+                            } finally {
+                                isPlacingOrder = false
+                                showOrderConfirmedDialog = true
+                            }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.height(48.dp)
                 ) {
-                    Icon(Icons.Default.Lock, contentDescription = null, tint = OnPrimaryCyan, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Place Order & Launch 🚀",
-                        color = OnPrimaryCyan,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (isPlacingOrder) {
+                        CircularProgressIndicator(
+                            color = OnPrimaryCyan,
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(Icons.Default.Lock, contentDescription = null, tint = OnPrimaryCyan, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Place Order & Launch 🚀",
+                            color = OnPrimaryCyan,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -318,7 +345,10 @@ fun CheckoutScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text("TRACKING CODE: ORBIT-2026-X942", color = PrimaryCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                val orderIdText = confirmedOrderResponse?.id ?: "ORBIT-2026-X942"
+                                val statusText = confirmedOrderResponse?.status ?: "CONFIRMED & DISPATCHED"
+                                Text("ORDER CODE: $orderIdText", color = PrimaryCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("STATUS: $statusText", color = EmeraldGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 Text("ESTIMATED ARRIVAL: 2 Orbital Days", color = SecondaryCyan, fontSize = 11.sp)
                                 Text("TOTAL PAID: " + String.format(java.util.Locale.US, "$%.2f", finalTotal), color = LightCyanText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }

@@ -34,7 +34,7 @@ interface SkyPulseApi {
     suspend fun getProducts(): Response<List<Product>>
 
     @POST("/api/v1/shop/checkout")
-    suspend fun checkout(@Body request: CheckoutRequest): Response<Any>
+    suspend fun checkout(@Body request: CheckoutRequest): Response<OrderResponse>
 
     @GET("/api/v1/shop/orders/{username}")
     suspend fun getUserOrders(@Path("username") username: String): Response<List<OrderResponse>>

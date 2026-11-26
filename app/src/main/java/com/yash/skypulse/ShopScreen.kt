@@ -1,5 +1,7 @@
 package com.yash.skypulse
 
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -95,6 +97,18 @@ class ShopViewModel : ViewModel() {
     private fun fetchProductsFromBackend() {
         viewModelScope.launch {
             try {
+                // 1. Try Spring Boot PostgreSQL Backend API first
+                val response = BackendRetrofitInstance.api.getProducts()
+                if (response.isSuccessful && response.body() != null && response.body()!!.isNotEmpty()) {
+                    _products.value = response.body()!!
+                    return@launch
+                }
+            } catch (e: Exception) {
+                println("PostgreSQL Spring Boot API error: ${e.message}")
+            }
+
+            try {
+                // 2. Try DummyJSON API fallback
                 val dummyResponse = DummyJsonInstance.api.getProducts(limit = 30)
                 if (dummyResponse.isSuccessful && dummyResponse.body() != null) {
                     val liveProducts = dummyResponse.body()!!.products.map { it.toProduct() }
@@ -102,19 +116,10 @@ class ShopViewModel : ViewModel() {
                     return@launch
                 }
             } catch (e: Exception) {
-                println("DummyJSON API unreachable, trying fallback: ${e.message}")
+                println("DummyJSON API unreachable: ${e.message}")
             }
 
-            try {
-                val response = BackendRetrofitInstance.api.getProducts()
-                if (response.isSuccessful && response.body() != null && response.body()!!.isNotEmpty()) {
-                    _products.value = response.body()!!
-                    return@launch
-                }
-            } catch (e: Exception) {
-                println("Backend API error: ${e.message}")
-            }
-
+            // 3. Local Static Fallback
             _products.value = fallbackProducts
         }
     }
@@ -182,10 +187,11 @@ class ShopViewModel : ViewModel() {
 
     fun addToCart(product: Product) {
         val currentCart = _cart.value.toMutableList()
-        val existingItem = currentCart.find { it.product.id == product.id }
+        val existingIndex = currentCart.indexOfFirst { it.product.id == product.id }
 
-        if (existingItem != null) {
-            existingItem.quantity += 1
+        if (existingIndex != -1) {
+            val currentItem = currentCart[existingIndex]
+            currentCart[existingIndex] = currentItem.copy(quantity = currentItem.quantity + 1)
         } else {
             currentCart.add(CartItem(product, 1))
         }
@@ -197,9 +203,11 @@ class ShopViewModel : ViewModel() {
         if (newQuantity <= 0) {
             currentCart.removeAll { it.product.id == product.id }
         } else {
-            val item = currentCart.find { it.product.id == product.id }
-            if (item != null) {
-                item.quantity = newQuantity
+            val index = currentCart.indexOfFirst { it.product.id == product.id }
+            if (index != -1) {
+                currentCart[index] = currentCart[index].copy(quantity = newQuantity)
+            } else {
+                currentCart.add(CartItem(product, newQuantity))
             }
         }
         _cart.value = currentCart
@@ -252,6 +260,7 @@ fun ShopScreen(
     var isCheckoutActive by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
+    var selectedDetailProduct by remember { mutableStateOf<Product?>(null) }
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf("0") }
@@ -291,6 +300,7 @@ fun ShopScreen(
     if (isCheckoutActive) {
         CheckoutScreen(
             cartItems = cart,
+            currentUsername = currentUsername,
             onBackClick = { isCheckoutActive = false },
             onQuantityChange = { product, q -> viewModel.updateCartQuantity(product, q) },
             onOrderComplete = {
@@ -374,6 +384,9 @@ fun ShopScreen(
                                 cartQuantity = quantity,
                                 onQuantityChange = { newQ ->
                                     viewModel.updateCartQuantity(product, newQ)
+                                },
+                                onProductClick = {
+                                    selectedDetailProduct = product
                                 }
                             )
                         }
@@ -487,6 +500,20 @@ fun ShopScreen(
                     viewModel.resetFilters()
                 },
                 onDismiss = { showFilterSheet = false }
+            )
+        }
+
+        if (selectedDetailProduct != null) {
+            val currentDetail = selectedDetailProduct!!
+            val cartItem = cart.find { it.product.id == currentDetail.id }
+            val quantity = cartItem?.quantity ?: 0
+            ProductDetailBottomSheet(
+                product = currentDetail,
+                cartQuantity = quantity,
+                onQuantityChange = { newQ ->
+                    viewModel.updateCartQuantity(currentDetail, newQ)
+                },
+                onDismiss = { selectedDetailProduct = null }
             )
         }
     }
@@ -1000,14 +1027,17 @@ fun SectionHeaderAndSort(
 fun ProductCard(
     product: Product,
     cartQuantity: Int,
-    onQuantityChange: (Int) -> Unit
+    onQuantityChange: (Int) -> Unit,
+    onProductClick: () -> Unit = {}
 ) {
     var isFavorite by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, SurfaceHigh, RoundedCornerShape(16.dp)),
+            .border(1.dp, SurfaceHigh, RoundedCornerShape(16.dp))
+            .clickable { onProductClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceLow)
     ) {
@@ -1171,7 +1201,10 @@ fun ProductCard(
             // Add to Cart Button OR In-Card Quantity Stepper
             if (cartQuantity <= 0) {
                 Button(
-                    onClick = { onQuantityChange(1) },
+                    onClick = {
+                        onQuantityChange(1)
+                        Toast.makeText(context, "Added ${product.name} to cart!", Toast.LENGTH_SHORT).show()
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(34.dp),
@@ -1520,6 +1553,190 @@ fun AdvancedFilterBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProductDetailBottomSheet(
+    product: Product,
+    cartQuantity: Int,
+    onQuantityChange: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceLow
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    color = PrimaryCyan.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = product.category.uppercase(),
+                        color = PrimaryCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = OnSurfaceText)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Large Product Media Box
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(SurfaceLowest)
+                    .border(1.dp, SurfaceHigh, RoundedCornerShape(16.dp))
+            ) {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = product.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+
+                if (product.badge != null) {
+                    Surface(
+                        color = PrimaryCyan,
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = product.badge,
+                            color = OnPrimaryCyan,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = product.name,
+                color = OnSurfaceText,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Star, contentDescription = null, tint = PrimaryCyan, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "${product.rating}",
+                    color = OnSurfaceText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "(${product.reviewCount} reviews)",
+                    color = OutlineText,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "In Stock (${product.stockQuantity} left)",
+                    color = EmeraldGreen,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = product.description,
+                color = OnSurfaceVariantText,
+                fontSize = 13.sp,
+                lineHeight = 18.sp
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Price & Cart Action Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("PRICE", color = OutlineText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = String.format(java.util.Locale.US, "$%.2f", product.price),
+                        color = PrimaryCyan,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                if (cartQuantity <= 0) {
+                    Button(
+                        onClick = {
+                            onQuantityChange(1)
+                            Toast.makeText(context, "Added ${product.name} to cart!", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryCyan),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(46.dp)
+                    ) {
+                        Icon(Icons.Default.AddShoppingCart, contentDescription = null, tint = OnPrimaryCyan)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add to Cart", color = OnPrimaryCyan, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(PrimaryCyan)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        IconButton(onClick = { onQuantityChange(cartQuantity - 1) }) {
+                            Icon(Icons.Default.Remove, contentDescription = "Remove", tint = OnPrimaryCyan)
+                        }
+                        Text(
+                            text = "$cartQuantity in cart",
+                            color = OnPrimaryCyan,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        IconButton(onClick = { onQuantityChange(cartQuantity + 1) }) {
+                            Icon(Icons.Default.Add, contentDescription = "Add", tint = OnPrimaryCyan)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
